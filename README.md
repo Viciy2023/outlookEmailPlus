@@ -1,6 +1,10 @@
-# Outlook 邮件管理工具
+# Outlook Email Plus
 
-一个功能完整的 Outlook 邮件管理解决方案，支持多种方式读取 Outlook 邮箱邮件，并提供 Web 界面进行邮箱账号管理和邮件查看。
+一个功能完整的 Outlook 邮件管理解决方案，支持多种方式读取 Outlook 邮箱邮件，并提供现代化 Web 界面进行邮箱账号管理和邮件查看。
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](https://hub.docker.com/r/guangshanshui/outlook-email-plus)
 
 ## ✨ 功能特性
 
@@ -80,43 +84,11 @@ Web 应用采用四栏式布局设计：
 
 ## 📸 界面预览
 
-### 邮箱列表界面
-![邮箱列表](img/邮箱列表.png)
-
-### 全局搜索功能
-![全局搜索](img/全局搜索.png)
-
-### 导入邮箱账号
-![导入邮箱账号](img/导入邮箱账号.png)
-
-### Token 刷新管理
-![全量刷新Token](img/全量刷新token.png)
-
-### 定时刷新配置 - 按天数
-![设置-按天数定时刷新](img/设置-按天数定时刷新.png)
-
-### 定时刷新配置 - 按 Cron 表达式
-![设置-按Cron定时刷新](img/设置-按corn定时刷新.png)
-
-### 登录速率限制保护
-![登录失败强制间隔](img/登录失败强制间隔.png)
-
-### 标签管理功能（⭐ 2026-01-31 新增）
-![标签管理](img/标签管理.png)
-
-### OAuth2 授权流程
-
-#### 步骤 1：应用注册
-![应用注册](img/应用注册.png)
-
-#### 步骤 2：注册应用程序
-![注册应用程序](img/注册应用程序.png)
-
-#### 步骤 3：获取应用程序 ID
-![获取应用程序ID](img/获取应用程序ID.png)
-
-#### 步骤 4：换取 Token
-![换取token](img/换取token.png)
+本项目提供现代化的四栏式 Web 界面：
+- 分组面板 - 管理邮箱分组
+- 邮箱面板 - 显示账号列表
+- 邮件列表 - 浏览邮件
+- 邮件详情 - 查看完整内容
 
 
 ## 📦 快速开始
@@ -382,15 +354,11 @@ docker run -d \
 
 #### 步骤 1：注册 Azure 应用
 
-访问 [Azure Portal](https://portal.azure.com/)，进入「应用注册」：
-
-![应用注册](img/应用注册.png)
+访问 [Azure Portal](https://portal.azure.com/)，进入「应用注册」创建新应用。
 
 #### 步骤 2：创建新应用
 
 点击「新注册」，填写应用信息：
-
-![注册应用程序](img/注册应用程序.png)
 
 - **名称**：自定义应用名称
 - **支持的账户类型**：选择「任何组织目录中的账户和个人 Microsoft 账户」
@@ -398,11 +366,9 @@ docker run -d \
 
 #### 步骤 3：获取应用程序 ID
 
-创建完成后，复制「应用程序(客户端) ID」：
+创建完成后，复制「应用程序(客户端) ID」。
 
-![获取应用程序ID](img/获取应用程序ID.png)
-
-#### 步骤 4：配置 API 权限  这一步应该可以省略，目前内置的客户端id就没有设置这一步也能正常使用
+#### 步骤 4：配置 API 权限
 
 在「API 权限」中添加以下权限：
 - `offline_access` - 获取刷新令牌
@@ -414,8 +380,6 @@ docker run -d \
 #### 步骤 5：获取 Refresh Token
 
 使用本工具内置的 OAuth2 助手获取 Refresh Token：
-
-![换取token](img/换取token.png)
 
 1. 在 Web 界面点击「获取 Token」按钮
 2. 点击「生成授权链接」
@@ -519,8 +483,6 @@ user@outlook.com----password123----24d9a0ed-8787-4584-883c-2fd79308940a----0.AXE
 #### 搜索标签
 - 在全局搜索框中输入标签名称，可搜索到带有该标签的邮箱账号
 
-![标签管理](img/标签管理.png)
-
 ### 7. 批量移动分组（⭐ 2026-02-08 新增）
 
 支持批量选择多个邮箱账号，一次性移动到指定分组。
@@ -615,10 +577,10 @@ socks5://user:pass@proxy.example.com:1080
 3. **定时刷新配置** - 配置 Token 自动刷新策略
 
 #### 按天数定时刷新
-![设置-按天数定时刷新](img/设置-按天数定时刷新.png)
+在设置中选择"按天数"策略，设置每隔 X 天自动刷新（1-90 天）。
 
 #### 按 Cron 表达式定时刷新
-![设置-按Cron定时刷新](img/设置-按corn定时刷新.png)
+在设置中选择"Cron 表达式"策略，输入自定义的 Cron 表达式。
 
 设置会保存在数据库中，重启应用后仍然有效。
 
@@ -667,7 +629,6 @@ socks5://user:pass@proxy.example.com:1080
 - 及时处理失败的账号，重新获取 Token
 - 定期查看刷新历史，了解账号健康状态
 - 失败邮箱会在列表中加粗标红显示，便于识别
-![全量刷新Token](img/全量刷新token.png)
 
 
 ## 🌐 生产环境部署
@@ -770,8 +731,6 @@ pip install -r requirements.txt
 - **锁定时长**：15 分钟
 - **基于 IP**：每个 IP 独立计数
 - **自动解锁**：锁定时间到期后自动解锁
-
-![登录失败强制间隔](img/登录失败强制间隔.png)
 
 ### 4. 敏感数据加密
 

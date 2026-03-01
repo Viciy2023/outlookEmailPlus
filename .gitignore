@@ -10,6 +10,7 @@ build/
 venv/
 env/
 ENV/
+.venv/
 
 # 数据库文件
 *.db
@@ -25,15 +26,30 @@ data/
 .idea/
 *.swp
 *.swo
+.kiro/
 
 # Node / Jest
 node_modules/
+package.json
+package-lock.json
 tests/layout-system/coverage/
+tests/layout-system/accessibility/
+tests/layout-system/performance/
 
-# 本地临时文件/素材（避免误提交）
+# 文档目录（不开源）
+docs/
+PRD/
+我们的文档/
+img/
+
+# 临时文件和迁移痕迹
 PixPin_*.png
 exeample/
-2026-02-26-api-key-credit-monitoring.md
+ui-preview.html
+.mcp.json
+AI_EXECUTION_PROMPT.md
+AI工作提示词*.md
+*api-key-credit-monitoring.md
 
 # 日志
 *.log
@@ -41,6 +57,9 @@ exeample/
 # 系统文件
 .DS_Store
 Thumbs.db
+.pytest_cache/
+
+# 配置文件（不开源）
 /get_oauth_token.py
 /test*
 !/tests/

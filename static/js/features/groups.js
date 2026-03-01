@@ -3,7 +3,7 @@
         // 加载分组列表
         async function loadGroups() {
             const container = document.getElementById('groupList');
-            container.innerHTML = '<div class="loading loading-small"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span> 加载中…</div>';
 
             try {
                 const response = await fetch('/api/groups');
@@ -35,7 +35,7 @@
                     }
                 }
             } catch (error) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">加载失败</div></div>';
+                container.innerHTML = '<div class="empty-state"><p>加载失败</p></div>';
                 showToast('加载分组失败', 'error');
             }
         }
@@ -44,34 +44,33 @@
         function renderGroupList(groups) {
             const container = document.getElementById('groupList');
 
-            if (groups.length === 0) {
+            // 过滤掉临时邮箱分组（已有独立页面管理）
+            const filteredGroups = groups.filter(g => g.name !== '临时邮箱');
+
+            if (filteredGroups.length === 0) {
                 container.innerHTML = `
-                    <div class="empty-state" style="padding: 40px 20px;">
-                        <div class="empty-state-text">暂无分组</div>
+                    <div class="empty-state">
+                        <span class="empty-icon">📁</span>
+                        <p>暂无分组</p>
                     </div>
                 `;
                 return;
             }
 
-            container.innerHTML = groups.map(group => {
-                const isSystem = group.is_system === 1 || group.name === '临时邮箱';
-                const isTempGroup = group.name === '临时邮箱';
+            container.innerHTML = filteredGroups.map(group => {
+                const isSystem = group.is_system === 1;
                 const isDefault = group.id === 1;
 
                 return `
-                    <div class="group-item ${currentGroupId === group.id ? 'active' : ''} ${isTempGroup ? 'temp-email-group' : ''}"
+                    <div class="group-item ${currentGroupId === group.id ? 'active' : ''}"
                          data-group-id="${group.id}"
                          onclick="selectGroup(${group.id})">
-                        <div class="group-row-1">
-                            <div class="group-color" style="background-color: ${group.color || '#666'}"></div>
-                            <span class="group-name">${escapeHtml(group.name)}${isTempGroup ? ' ⚡' : ''}</span>
-                        </div>
-                        <div class="group-row-2">
-                            <span class="group-count">${group.account_count || 0} 个邮箱</span>
-                            <div class="group-actions">
-                                ${!isSystem ? `<button class="group-action-btn" onclick="event.stopPropagation(); editGroup(${group.id})" title="编辑">✏️</button>` : ''}
-                                ${!isDefault && !isSystem ? `<button class="group-action-btn" onclick="event.stopPropagation(); deleteGroup(${group.id})" title="删除">🗑️</button>` : ''}
-                            </div>
+                        <span class="group-color-dot" style="background-color: ${group.color || '#666'}"></span>
+                        <span class="group-name">${escapeHtml(group.name)}</span>
+                        <span class="badge-count">${group.account_count || 0}</span>
+                        <div class="group-actions">
+                            ${!isSystem ? `<button class="btn-icon" onclick="event.stopPropagation(); editGroup(${group.id})" title="编辑">✏️</button>` : ''}
+                            ${!isDefault && !isSystem ? `<button class="btn-icon" onclick="event.stopPropagation(); deleteGroup(${group.id})" title="删除">🗑️</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -114,25 +113,17 @@
 
             // 加载该分组的邮箱
             if (isTempEmailGroup) {
-                await loadTempEmails();
+                // 临时邮箱已有独立页面，跳转到专属页面管理
+                navigate('temp-emails');
+                return;
             } else {
                 await loadAccountsByGroup(groupId);
             }
         }
 
-        // 更新账号面板底部按钮
+        // 更新账号面板底部按钮（新布局无独立footer，通过topbar按钮实现）
         function updateAccountPanelFooter() {
-            const footer = document.querySelector('.account-panel-footer');
-            if (isTempEmailGroup) {
-                footer.innerHTML = `
-                    <button class="add-account-btn" onclick="generateTempEmail()">+ 生成临时邮箱</button>
-                `;
-            } else {
-                footer.innerHTML = `
-                    <button class="add-account-btn" onclick="showGetRefreshTokenModal()" style="background-color: #0078d4; margin-bottom: 8px;">🔑 获取 Refresh Token</button>
-                    <button class="add-account-btn" onclick="showAddAccountModal()">+ 导入邮箱</button>
-                `;
-            }
+            // No-op: new layout uses topbar action buttons instead
         }
 
         // 加载分组下的账号
@@ -145,7 +136,7 @@
                 return;
             }
 
-            container.innerHTML = '<div class="loading loading-small"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span> 加载中…</div>';
 
             try {
                 const response = await fetch(`/api/accounts?group_id=${groupId}`);
@@ -157,7 +148,7 @@
                     renderAccountList(data.accounts);
                 }
             } catch (error) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">加载失败</div></div>';
+                container.innerHTML = '<div class="empty-state"><p>加载失败</p></div>';
             }
         }
 
@@ -168,68 +159,82 @@
             if (accounts.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
-                        <div class="empty-state-text">该分组暂无邮箱</div>
+                        <span class="empty-icon">📭</span>
+                        <p>该分组暂无邮箱</p>
                     </div>
                 `;
-                // ���置全选复选框（但不清空已选中的其他分组账号）
                 const selectAllCheckbox = document.getElementById('selectAllCheckbox');
                 if (selectAllCheckbox) {
                     selectAllCheckbox.checked = false;
                     selectAllCheckbox.indeterminate = selectedAccountIds.size > 0;
                 }
-                // 更新批量操作栏显示
                 updateBatchActionBar();
                 return;
             }
 
+            // 头像颜色轮转数组 — 8 组渐变色
+            const avatarGradients = [
+                ['#B85C38', '#E8734A'],  // 砖红→珊瑚
+                ['#3A7D44', '#5BAF6A'],  // 翠绿→嫩绿
+                ['#2E6B8A', '#4BA3CC'],  // 海蓝→天蓝
+                ['#8B5E3C', '#C8963E'],  // 棕→琥珀金
+                ['#7B4F9B', '#B77FD8'],  // 紫罗兰→薰衣草
+                ['#C75050', '#E88080'],  // 朱红→浅红
+                ['#2C7A7B', '#4DC9C9'],  // 青绿→薄荷
+                ['#9B6B3E', '#D4A65A'],  // 赭石→沙金
+            ];
+
             container.innerHTML = accounts.map((acc, index) => {
-                // 根据全局 Set 设置复选框状态
                 const isChecked = selectedAccountIds.has(acc.id);
+                const initial = (acc.email || '?')[0].toUpperCase();
+                const isFailed = acc.last_refresh_status === 'failed';
+                const gradient = avatarGradients[index % avatarGradients.length];
+
+                let tokenBadge = '<span class="badge badge-gray">– 未知</span>';
+                if (acc.token_status === 'valid') {
+                    tokenBadge = '<span class="badge badge-green">✓ 有效</span>';
+                } else if (acc.token_status === 'invalid' || acc.token_status === 'expired') {
+                    tokenBadge = '<span class="badge badge-red">✗ 过期</span>';
+                } else if (acc.token_status === 'expiring') {
+                    tokenBadge = '<span class="badge badge-gold">⚠ 即将过期</span>';
+                }
+
                 return `
-                <div class="account-item ${currentAccount === acc.email ? 'active' : ''} ${acc.status === 'inactive' ? 'inactive' : ''}"
+                <div class="account-card ${currentAccount === acc.email ? 'active' : ''}"
                      onclick="selectAccount('${escapeJs(acc.email)}')">
-                    <div style="display: flex; align-items: flex-start; gap: 10px;">
+                    <div class="account-token-badge">${tokenBadge}</div>
+                    <div class="account-card-top">
                         <input type="checkbox" class="account-select-checkbox" value="${acc.id}"
                                ${isChecked ? 'checked' : ''}
-                               onclick="event.stopPropagation(); updateBatchActionBar(); updateSelectAllCheckbox()"
-                               style="margin-top: 6px; cursor: pointer;">
-                        <div style="flex: 1; min-width: 0;">
-                            <div class="account-email" title="${escapeHtml(acc.email)}" style="display: flex; align-items: center; gap: 6px; overflow: hidden; ${acc.last_refresh_status === 'failed' ? 'color: #dc3545; font-weight: 700;' : ''}">
-                                <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                    <span class="account-number">${index + 1}.</span> ${escapeHtml(acc.email)}
-                                </span>
-                                <button class="copy-verification-btn" onclick="event.stopPropagation(); copyVerificationInfo('${escapeJs(acc.email)}', this)" title="提取验证码并复制">📋</button>
-                                ${acc.status === 'inactive' ? '<span class="account-status-tag">已停用</span>' : ''}
+                               onclick="event.stopPropagation(); updateBatchActionBar(); updateSelectAllCheckbox()">
+                        <div class="account-avatar" style="background: linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})">${initial}</div>
+                        <div class="account-info">
+                            <div class="account-email" ${isFailed ? 'style="color:var(--clr-danger);"' : ''}>
+                                ${escapeHtml(acc.email)}
                             </div>
-                            ${acc.remark && acc.remark.trim() ? `<div class="account-remark" title="${escapeHtml(acc.remark)}">📝 ${escapeHtml(acc.remark)}</div>` : ''}
-
-                            <div class="account-tags">
-                                ${(acc.tags || []).map(tag => `
-                                    <span class="tag-badge" style="background-color: ${tag.color}">
-                                        ${escapeHtml(tag.name)}
-                                    </span>
-                                `).join('')}
-                            </div>
-
-                            <div class="account-refresh-time" style="font-size: 11px; color: ${acc.last_refresh_status === 'failed' ? '#dc3545' : '#999'}; margin-top: 4px; padding-left: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                                <span>🕐 ${formatRelativeTime(acc.last_refresh_at)}</span>
-                                ${acc.last_refresh_status === 'failed' ? '<button class="account-action-btn" onclick="event.stopPropagation(); showRefreshError(' + acc.id + ', \'' + escapeJs(acc.last_refresh_error || '未知错误') + '\', \'' + escapeJs(acc.email) + '\')" style="padding: 2px 6px; font-size: 10px; background-color: #dc3545; color: white; border: none; border-radius: 3px; cursor: pointer;">查看错误</button>' : ''}
+                            ${acc.remark && acc.remark.trim() ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">📝 ${escapeHtml(acc.remark)}</div>` : ''}
+                            <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;">
+                                ${(acc.tags || []).map(tag => `<span class="tag" style="background-color:${tag.color};color:white;">${escapeHtml(tag.name)}</span>`).join('')}
                             </div>
                         </div>
                     </div>
-                    <div class="account-actions">
-                        <button class="account-action-btn" onclick="event.stopPropagation(); copyEmail('${escapeJs(acc.email)}')" title="复制邮箱">复制</button>
-                        <button class="account-action-btn" onclick="event.stopPropagation(); toggleAccountStatus(${acc.id}, '${escapeJs(acc.status || 'active')}')" title="${acc.status === 'inactive' ? '启用' : '停用'}">${acc.status === 'inactive' ? '启用' : '停用'}</button>
-                        <button class="account-action-btn" onclick="event.stopPropagation(); showEditAccountModal(${acc.id})" title="编辑">编辑</button>
-                        <button class="account-action-btn delete" onclick="event.stopPropagation(); deleteAccount(${acc.id}, '${escapeJs(acc.email)}')" title="删除">删除</button>
+                    <div class="account-card-bottom">
+                        <div class="account-meta">
+                            <span class="account-api-tag">${acc.method || 'Graph'}</span>
+                            <span>🕐 ${formatRelativeTime(acc.last_refresh_at)}</span>
+                            ${isFailed ? `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); showRefreshError(${acc.id}, '${escapeJs(acc.last_refresh_error || '未知错误')}', '${escapeJs(acc.email)}')" style="padding:1px 6px;font-size:0.65rem;">查看错误</button>` : ''}
+                        </div>
+                        <div class="account-actions">
+                            <button class="btn btn-sm btn-accent" onclick="event.stopPropagation(); copyVerificationInfo('${escapeJs(acc.email)}', this)" title="提取验证码" style="font-size:0.72rem;padding:2px 8px;">🔑 验证码</button>
+                            <button class="btn-icon" onclick="event.stopPropagation(); copyEmail('${escapeJs(acc.email)}')" title="复制">📋</button>
+                            <button class="btn-icon" onclick="event.stopPropagation(); showEditAccountModal(${acc.id})" title="编辑">✏️</button>
+                            <button class="btn-icon" onclick="event.stopPropagation(); deleteAccount(${acc.id}, '${escapeJs(acc.email)}')" title="删除" style="color:var(--clr-danger);">🗑️</button>
+                        </div>
                     </div>
                 </div>
             `}).join('');
 
-            // 更新全选复选框状态
             updateSelectAllCheckbox();
-            // 更新批量操作栏显示
             updateBatchActionBar();
         }
 
@@ -250,17 +255,11 @@
             // 更新按钮状态
             document.querySelectorAll('.sort-btn').forEach(btn => {
                 btn.classList.remove('active');
-                btn.style.backgroundColor = '#ffffff';
-                btn.style.color = '#666';
-                btn.style.borderColor = '#e5e5e5';
             });
 
             const activeBtn = document.querySelector(`[data-sort="${sortBy}"]`);
             if (activeBtn) {
                 activeBtn.classList.add('active');
-                activeBtn.style.backgroundColor = '#1a1a1a';
-                activeBtn.style.color = '#ffffff';
-                activeBtn.style.borderColor = '#1a1a1a';
             }
 
             // 重新加载并排序账号列表
@@ -331,7 +330,7 @@
                 return;
             }
 
-            container.innerHTML = '<div class="loading loading-small"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span> 搜索中…</div>';
 
             try {
                 const response = await fetch(`/api/accounts/search?q=${encodeURIComponent(query)}`);
@@ -341,11 +340,11 @@
                     titleElement.textContent = `搜索结果 (${data.accounts.length})`;
                     renderAccountList(data.accounts);
                 } else {
-                    container.innerHTML = '<div class="empty-state"><div class="empty-state-text">搜索失败</div></div>';
+                    container.innerHTML = '<div class="empty-state"><p>搜索失败</p></div>';
                 }
             } catch (error) {
                 console.error('搜索失败:', error);
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">搜索失败，请重试</div></div>';
+                container.innerHTML = '<div class="empty-state"><p>搜索失败，请重试</p></div>';
             }
         }
 
@@ -380,7 +379,7 @@
             document.getElementById('groupModalTitle').textContent = '添加分组';
             document.getElementById('groupName').value = '';
             document.getElementById('groupDescription').value = '';
-            selectedColor = '#1a1a1a';
+            selectedColor = '#B85C38';
             document.querySelectorAll('.color-option').forEach(o => {
                 o.classList.toggle('selected', o.dataset.color === selectedColor);
             });
@@ -406,7 +405,7 @@
                     document.getElementById('groupModalTitle').textContent = '编辑分组';
                     document.getElementById('groupName').value = data.group.name;
                     document.getElementById('groupDescription').value = data.group.description || '';
-                    selectedColor = data.group.color || '#1a1a1a';
+                    selectedColor = data.group.color || '#B85C38';
 
                     // 检查是否是预设颜色
                     let isPresetColor = false;

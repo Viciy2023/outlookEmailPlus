@@ -4,31 +4,310 @@
         let currentGroupId = null;
         let currentEmails = [];
         let currentMethod = 'graph';
-        let currentFolder = 'inbox'; // 当前文件夹：inbox 或 deleteditems
+        let currentFolder = 'inbox';
         let isListVisible = true;
         let groups = [];
-        let accountsCache = {}; // 缓存各分组的邮箱列表
+        let accountsCache = {};
         let editingGroupId = null;
-        let selectedColor = '#1a1a1a';
-        let isTempEmailGroup = false; // 是否是临时邮箱分组
-        let tempEmailGroupId = null; // 临时邮箱分组 ID
-        let isLoadingMore = false; // 是否正在加载更多邮件
-        let hasMoreEmails = true; // 是否还有更多邮件
-        let currentSkip = 0; // 当前分页偏移量
-        let lastRefreshTime = null; // 上次刷新时间（模块内变量，不再使用window.lastRefreshTime）
+        let selectedColor = '#B85C38';
+        let isTempEmailGroup = false;
+        let tempEmailGroupId = null;
+        let isLoadingMore = false;
+        let hasMoreEmails = true;
+        let currentSkip = 0;
+        let lastRefreshTime = null;
 
         // 缓存与信任模式
-        let emailListCache = {}; // 结构: { "account_folder": { emails: [], hasMore: bool, skip: int, method: str, count: int } }
-        let currentEmailDetail = null; // 当前查看的邮件详细数据
-        let isTrustedMode = false; // 是否处于信任模式（不过滤 HTML）
+        let emailListCache = {};
+        let currentEmailDetail = null;
+        let isTrustedMode = false;
 
         // 轮询相关
-        let pollingTimer = null; // 轮询定时器
-        let pollingCount = 0; // 当前轮询次数
-        let maxPollingCount = 5; // 最大轮询次数
-        let pollingInterval = 10; // 轮询间隔（秒）
-        let isPolling = false; // 是否正在轮询
-        let knownEmailIds = new Set(); // 已知的邮件ID集合
+        let pollingTimer = null;
+        let pollingCount = 0;
+        let maxPollingCount = 5;
+        let pollingInterval = 10;
+        let isPolling = false;
+        let knownEmailIds = new Set();
+
+        // 导航状态
+        let currentPage = 'dashboard';
+
+        // ==================== 主题 & 导航 ====================
+
+        function applyTheme(theme) {
+            document.documentElement.dataset.theme = theme;
+            localStorage.setItem('ol_theme', theme);
+            const btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = theme === 'dark' ? '☀ 浅色模式' : '☾ 深色模式';
+        }
+
+        function toggleTheme() {
+            const current = document.documentElement.dataset.theme || 'light';
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+        }
+
+        function navigate(page) {
+            currentPage = page;
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(p => p.classList.add('page-hidden'));
+            const target = document.getElementById('page-' + page);
+            if (target) {
+                target.classList.remove('page-hidden');
+                target.style.display = '';
+            }
+            // Update nav active state
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const navBtn = document.querySelector(`.nav-item[data-page="${page}"]`);
+            if (navBtn) navBtn.classList.add('active');
+            // Update topbar
+            updateTopbar(page);
+            // Close mobile sidebar
+            closeSidebar();
+            // Load page data
+            if (page === 'dashboard') loadDashboard();
+            if (page === 'mailbox' && groups.length === 0) loadGroups();
+            if (page === 'temp-emails' && typeof loadTempEmails === 'function') loadTempEmails(true);
+            if (page === 'settings') loadSettings();
+            if (page === 'refresh-log') loadRefreshLogPage();
+            if (page === 'audit') loadAuditLogPage();
+        }
+
+        function updateTopbar(page) {
+            const titleEl = document.getElementById('topbarTitle');
+            const subtitleEl = document.getElementById('topbarSubtitle');
+            const actionsEl = document.getElementById('topbar-actions');
+            const titles = {
+                'dashboard': ['仪表盘', '系统概览'],
+                'mailbox': ['账号管理', '管理邮箱账号与查看邮件'],
+                'temp-emails': ['临时邮箱', '创建和管理临时邮箱'],
+                'refresh-log': ['刷新日志', 'Token 刷新历史记录'],
+                'settings': ['系统设置', '配置系统参数'],
+                'audit': ['审计日志', '系统操作记录']
+            };
+            const t = titles[page] || [page, ''];
+            if (titleEl) titleEl.textContent = t[0];
+            if (subtitleEl) subtitleEl.textContent = t[1];
+            // Context actions
+            if (actionsEl) {
+                if (page === 'mailbox') {
+                    actionsEl.innerHTML = `
+                        <button class="btn btn-sm btn-ghost" onclick="showExportModal()">📤 导出</button>
+                        <button class="btn btn-sm btn-success" onclick="showRefreshModal()">🔄 全量刷新 Token</button>
+                        <button class="btn btn-sm btn-primary" onclick="showAddAccountModal()">＋ 添加账号</button>
+                    `;
+                } else if (page === 'temp-emails') {
+                    actionsEl.innerHTML = `
+                        <button class="btn btn-sm btn-primary" onclick="generateTempEmail()">＋ 创建邮箱</button>
+                    `;
+                } else {
+                    actionsEl.innerHTML = '';
+                }
+            }
+        }
+
+        function toggleSidebar() {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                // Mobile: toggle drawer
+                const sidebar = document.getElementById('sidebar');
+                const backdrop = document.getElementById('sidebarBackdrop');
+                sidebar.classList.toggle('mob-open');
+                backdrop.classList.toggle('show');
+            } else {
+                // Desktop: toggle collapsed state
+                const app = document.getElementById('app');
+                app.classList.toggle('sidebar-collapsed');
+                try {
+                    localStorage.setItem('ol_sidebar_collapsed', app.classList.contains('sidebar-collapsed'));
+                } catch(e) {}
+            }
+        }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            if (sidebar) sidebar.classList.remove('mob-open');
+            if (backdrop) backdrop.classList.remove('show');
+        }
+
+        function logout() {
+            if (!confirm('确认退出登录？')) return;
+            fetch('/logout', { method: 'POST' })
+                .then(() => window.location.href = '/login')
+                .catch(() => window.location.href = '/login');
+        }
+
+        // ==================== Dashboard ====================
+
+        async function loadDashboard() {
+            try {
+                const [groupsRes, tempRes] = await Promise.all([
+                    fetch('/api/groups'),
+                    fetch('/api/temp-emails').catch(() => ({ json: () => ({ success: false }) }))
+                ]);
+                const groupsData = await groupsRes.json();
+                const tempData = await tempRes.json();
+
+                let totalAccounts = 0, validTokens = 0, expiredTokens = 0;
+                const groupSummary = [];
+
+                if (groupsData.success && groupsData.groups) {
+                    for (const g of groupsData.groups) {
+                        const accRes = await fetch(`/api/accounts?group_id=${g.id}`);
+                        const accData = await accRes.json();
+                        const accounts = accData.success ? (accData.accounts || []) : [];
+                        totalAccounts += accounts.length;
+                        accounts.forEach(a => {
+                            if (a.last_refresh_status === 'failed') expiredTokens++;
+                            else validTokens++;
+                        });
+                        groupSummary.push({ id: g.id, name: g.name, color: g.color || '#666', count: accounts.length, isTempGroup: g.name === '临时邮箱' });
+                    }
+                }
+
+                // Update stat cards
+                const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+                el('statTotalAccounts', totalAccounts);
+                el('statValidTokens', validTokens);
+                el('statExpiredTokens', expiredTokens);
+                el('statTempEmails', tempData.success ? (tempData.emails || []).length : 0);
+
+                // Update topbar subtitle with summary
+                const sub = document.getElementById('topbarSubtitle');
+                if (sub && currentPage === 'dashboard') {
+                    sub.textContent = `共 ${totalAccounts} 个账号 · ${validTokens} 个 Token 有效`;
+                }
+
+                // Group summary list
+                const groupListEl = document.getElementById('dashboardGroupList');
+                if (groupListEl) {
+                    if (groupSummary.length === 0) {
+                        groupListEl.innerHTML = '<li style="color:var(--text-muted);padding:1rem;">暂无分组</li>';
+                    } else {
+                        groupListEl.innerHTML = groupSummary.map(g => {
+                            const clickAction = g.isTempGroup
+                                ? `navigate('temp-emails')`
+                                : `navigate('mailbox'); setTimeout(function(){ selectGroup(${g.id}); }, 100)`;
+                            return `<li style="cursor:pointer;" onclick="${clickAction}"><span style="display:flex;align-items:center;gap:0.5rem;"><span class="group-color-dot" style="background:${escapeHtml(g.color)};"></span>${escapeHtml(g.name)}</span><span class="badge badge-gray">${g.count}</span></li>`;
+                        }).join('');
+                    }
+                }
+
+                // Refresh log summary
+                const refreshListEl = document.getElementById('dashboardRefreshList');
+                if (refreshListEl) {
+                    try {
+                        const refreshRes = await fetch('/api/accounts/refresh-status');
+                        const refreshData = await refreshRes.json();
+                        if (refreshData.success && refreshData.refresh_status) {
+                            const rs = refreshData.refresh_status;
+                            refreshListEl.innerHTML = `
+                                <li><span>上次刷新时间</span><span class="badge badge-gray">${rs.last_refresh_time || '暂无'}</span></li>
+                                <li><span>成功账号数</span><span class="badge" style="background:var(--clr-jade);color:white;">${rs.success_count}</span></li>
+                                <li><span>失败账号数</span><span class="badge" style="background:${rs.failed_count > 0 ? 'var(--clr-danger)' : 'var(--clr-jade)'};color:white;">${rs.failed_count}</span></li>
+                            `;
+                        } else {
+                            refreshListEl.innerHTML = '<li style="color:var(--text-muted);padding:1rem;">暂无刷新记录</li>';
+                        }
+                    } catch (e) {
+                        refreshListEl.innerHTML = '<li style="color:var(--text-muted);padding:1rem;">前往刷新日志查看详情</li>';
+                    }
+                }
+            } catch (e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        // ==================== 分组搜索过滤 ====================
+
+        function filterGroups(query) {
+            const items = document.querySelectorAll('#groupList .group-item');
+            const q = query.toLowerCase();
+            items.forEach(item => {
+                const name = item.querySelector('.group-name');
+                if (name && name.textContent.toLowerCase().includes(q)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = q ? 'none' : '';
+                }
+            });
+        }
+
+        // ==================== 三栏拖拽调整 ====================
+
+        function initResizeHandles() {
+            document.querySelectorAll('.resize-handle').forEach(handle => {
+                handle.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    const leftId = this.dataset.left;
+                    const rightId = this.dataset.right;
+                    const leftPanel = document.getElementById(leftId);
+                    const rightPanel = document.getElementById(rightId);
+                    if (!leftPanel) return;
+
+                    this.classList.add('active');
+                    document.body.style.cursor = 'col-resize';
+                    document.body.style.userSelect = 'none';
+
+                    const startX = e.clientX;
+                    const startWidth = leftPanel.offsetWidth;
+
+                    function onMouseMove(ev) {
+                        const delta = ev.clientX - startX;
+                        const newWidth = Math.max(120, Math.min(startWidth + delta, 500));
+                        leftPanel.style.width = newWidth + 'px';
+                    }
+
+                    function onMouseUp() {
+                        handle.classList.remove('active');
+                        document.body.style.cursor = '';
+                        document.body.style.userSelect = '';
+                        document.removeEventListener('mousemove', onMouseMove);
+                        document.removeEventListener('mouseup', onMouseUp);
+                        // Save widths to localStorage
+                        try {
+                            const widths = {};
+                            document.querySelectorAll('.groups-column, .accounts-column').forEach(col => {
+                                widths[col.id] = col.style.width;
+                            });
+                            localStorage.setItem('ol_column_widths', JSON.stringify(widths));
+                        } catch(e) {}
+                    }
+
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                });
+            });
+
+            // Restore saved widths
+            try {
+                const saved = JSON.parse(localStorage.getItem('ol_column_widths') || '{}');
+                Object.entries(saved).forEach(([id, width]) => {
+                    const el = document.getElementById(id);
+                    if (el && width) el.style.width = width;
+                });
+            } catch(e) {}
+        }
+
+        // ==================== 邮件详情显示控制 ====================
+
+        function showEmailDetailSection() {
+            const section = document.getElementById('emailDetailSection');
+            if (section) section.style.display = 'flex';
+        }
+
+        function hideEmailDetailSection() {
+            const section = document.getElementById('emailDetailSection');
+            if (section) section.style.display = 'none';
+        }
+
+        function stopRefresh() {
+            // Placeholder for stopping a bulk refresh operation
+            showToast('刷新已停止', 'warn');
+            const bar = document.getElementById('refreshProgressBar');
+            if (bar) bar.style.display = 'none';
+        }
 
         // ==================== CSRF 防护 ====================
 
@@ -63,17 +342,27 @@
 
         // 初始化
         document.addEventListener('DOMContentLoaded', async function () {
+            // 应用保存的主题
+            applyTheme(localStorage.getItem('ol_theme') || 'light');
+
+            // 恢复侧边栏折叠状态
+            try {
+                if (localStorage.getItem('ol_sidebar_collapsed') === 'true') {
+                    document.getElementById('app').classList.add('sidebar-collapsed');
+                }
+            } catch(e) {}
+
             // 初始化 CSRF Token
             await initCSRFToken();
 
-            closeAllModals(); // 修复：应用启动时关闭所有模态框，防止浏览器缓存导致残留的模态框背景层
+            closeAllModals();
             loadGroups();
             if (typeof loadTags === 'function') {
                 loadTags();
             }
             initColorPicker();
-            initColorPicker();
             initEmailListScroll();
+            initResizeHandles();
 
             // 初始化轮询设置
             initPollingSettings();
@@ -91,6 +380,9 @@
                 }, 300);
                 searchInput.addEventListener('input', debouncedSearch);
             }
+
+            // 加载仪表盘
+            loadDashboard();
         });
 
         // 初始化颜色选择器
@@ -130,9 +422,9 @@
             // 在列表底部显示加载状态
             const emailList = document.getElementById('emailList');
             const loadingDiv = document.createElement('div');
-            loadingDiv.className = 'loading loading-small';
+            loadingDiv.className = 'loading-overlay';
             loadingDiv.id = 'loadingMore';
-            loadingDiv.innerHTML = '<div class="loading-spinner"></div>';
+            loadingDiv.innerHTML = '<span class="spinner"></span> 加载更多…';
             emailList.appendChild(loadingDiv);
 
             // 禁用按钮
@@ -227,8 +519,8 @@
                 // 清空邮件列表，显示提示
                 document.getElementById('emailList').innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📬</div>
-                        <div class="empty-state-text">点击"获取邮件"按钮获取${folder === 'inbox' ? '收件箱' : '垃圾邮件'}</div>
+                        <span class="empty-icon">📬</span>
+                        <p>点击"获取邮件"按钮获取${folder === 'inbox' ? '收件箱' : '垃圾邮件'}</p>
                     </div>
                 `;
                 document.getElementById('emailCount').textContent = '';
@@ -265,10 +557,17 @@
 
         // 显示消息提示
         function showToast(message, type = 'info', errorDetail = null) {
-            const toast = document.getElementById('toast');
-            toast.innerHTML = '';
+            let container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.setAttribute('aria-live', 'polite');
+                document.body.appendChild(container);
+            }
 
-            // Message span
+            const toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+
             const messageSpan = document.createElement('span');
             messageSpan.textContent = message;
             toast.appendChild(messageSpan);
@@ -277,27 +576,22 @@
                 const detailLink = document.createElement('a');
                 detailLink.href = 'javascript:void(0)';
                 detailLink.textContent = ' [详情]';
-                detailLink.style.color = '#ffdddd';
-                detailLink.style.textDecoration = 'underline';
-                detailLink.style.marginLeft = '8px';
+                detailLink.style.cssText = 'color:var(--clr-danger);text-decoration:underline;margin-left:8px;';
                 detailLink.onclick = function (e) {
                     e.stopPropagation();
                     showErrorDetailModal(errorDetail);
                 };
                 toast.appendChild(detailLink);
-
-                // Ensure the toast remains visible long enough for the user to click the link
-                clearTimeout(toast.timer);
-                toast.timer = setTimeout(() => {
-                    toast.className = 'toast';
-                }, 8000); // 8 seconds for errors with details
-            } else {
-                clearTimeout(toast.timer);
-                toast.timer = setTimeout(() => {
-                    toast.className = 'toast';
-                }, 3000); // 3 seconds for regular messages
             }
-            toast.className = 'toast show ' + type;
+
+            container.appendChild(toast);
+
+            const duration = (errorDetail && type === 'error') ? 8000 : 3000;
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(30px)';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
         }
 
         // 显示刷新错误信息
@@ -1032,7 +1326,7 @@ ${details}
         // 显示账号列表项上的红点
         function showAccountNewEmailDot(count) {
             // 在当前选中的账号项上显示红点
-            const activeItem = document.querySelector('.account-item.active');
+            const activeItem = document.querySelector('.account-card.active');
             if (activeItem) {
                 let dot = activeItem.querySelector('.new-email-badge');
                 if (!dot) {
@@ -1563,6 +1857,92 @@ ${details}
         // 隐藏刷新历史
         function hideRefreshLogs() {
             document.getElementById('refreshLogsContainer').style.display = 'none';
+        }
+
+        // ==================== 页面级：刷新日志 ====================
+
+        async function loadRefreshLogPage() {
+            const container = document.getElementById('refreshLogContainer');
+            if (!container) return;
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span> 加载中…</div>';
+
+            try {
+                const response = await fetch('/api/accounts/refresh-logs?limit=200');
+                const data = await response.json();
+
+                if (data.success && data.logs && data.logs.length > 0) {
+                    container.innerHTML = `
+                        <div style="padding:0.6rem 1rem;font-size:0.78rem;color:var(--text-muted);border-bottom:1px solid var(--border-light);">
+                            共 ${data.logs.length} 条记录
+                        </div>
+                        <div class="dashboard-list-wrap">
+                            ${data.logs.map(log => {
+                                const isSuccess = log.status === 'success';
+                                const statusBadge = isSuccess
+                                    ? '<span class="badge" style="background:var(--clr-jade);color:white;">成功</span>'
+                                    : '<span class="badge" style="background:var(--clr-danger);color:white;">失败</span>';
+                                const typeText = log.refresh_type === 'manual' ? '手动' : (log.refresh_type === 'scheduled' ? '定时' : log.refresh_type || '-');
+                                return `
+                                    <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:0.8rem;">
+                                        <div style="flex:1;min-width:0;">
+                                            <div style="font-weight:600;font-size:0.85rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(log.account_email || '-')}</div>
+                                            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;">${formatDateTime(log.created_at)} · ${escapeHtml(typeText)}</div>
+                                            ${log.error_message ? `<div style="font-size:0.72rem;color:var(--clr-danger);margin-top:4px;padding:4px 8px;background:rgba(185,28,28,0.06);border-radius:4px;">${escapeHtml(log.error_message)}</div>` : ''}
+                                        </div>
+                                        ${statusBadge}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span><p>暂无刷新记录</p></div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="empty-state"><span class="empty-icon">⚠️</span><p>加载刷新日志失败</p></div>';
+            }
+        }
+
+        // ==================== 页面级：审计日志 ====================
+
+        async function loadAuditLogPage() {
+            const container = document.getElementById('auditLogContainer');
+            if (!container) return;
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span> 加载中…</div>';
+
+            try {
+                const response = await fetch('/api/audit-logs?limit=200');
+                const data = await response.json();
+
+                if (data.success && data.logs && data.logs.length > 0) {
+                    container.innerHTML = `
+                        <div style="padding:0.6rem 1rem;font-size:0.78rem;color:var(--text-muted);border-bottom:1px solid var(--border-light);">
+                            共 ${data.total || data.logs.length} 条记录
+                        </div>
+                        <div class="dashboard-list-wrap">
+                            ${data.logs.map(log => {
+                                const actionColor = log.action === 'delete' ? 'var(--clr-danger)' : (log.action === 'create' ? 'var(--clr-jade)' : 'var(--clr-primary)');
+                                return `
+                                    <div style="padding:0.75rem 1rem;border-bottom:1px solid var(--border-light);">
+                                        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:4px;">
+                                            <span class="badge" style="background:${actionColor};color:white;font-size:0.68rem;">${escapeHtml(log.action || '-')}</span>
+                                            <span style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(log.resource_type || '-')}</span>
+                                            <span style="font-size:0.72rem;color:var(--text-muted);margin-left:auto;">${formatDateTime(log.created_at)}</span>
+                                        </div>
+                                        <div style="font-size:0.82rem;color:var(--text);">${escapeHtml(log.resource_id || '-')}</div>
+                                        ${log.details ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;word-break:break-all;">${escapeHtml(log.details).substring(0, 200)}</div>` : ''}
+                                        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">IP: ${escapeHtml(log.user_ip || '-')} ${log.trace_id ? '· trace: ' + escapeHtml(log.trace_id) : ''}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span><p>暂无审计记录</p></div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div class="empty-state"><span class="empty-icon">⚠️</span><p>加载审计日志失败</p></div>';
+            }
         }
 
         // 格式化日期时间

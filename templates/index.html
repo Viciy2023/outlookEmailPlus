@@ -5,225 +5,438 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Outlook 邮件管理</title>
-    <!-- DOMPurify for XSS protection -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <!-- 可调整布局系统：需在 main.css 之后引入以覆盖旧布局样式 -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
 </head>
 
 <body>
-    <!-- 顶部导航栏 -->
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
-            </svg>
-            Outlook 邮件
-            <span class="app-version">v{{ APP_VERSION }}</span>
-            <a href="https://github.com/assast/outlookEmail" target="_blank" class="github-star-btn"
-                style="margin-left: 16px;">
-                <svg viewBox="0 0 16 16" fill="currentColor">
-                    <path
-                        d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z" />
-                </svg>
-                Star on GitHub
-            </a>
-        </div>
-        <div class="navbar-center">
-            <div class="current-account" id="currentAccount" onclick="copyCurrentEmail()" title="点击复制邮箱地址">
-                当前邮箱：<strong id="currentAccountEmail"></strong>
+    <div id="app">
+        <!-- ===== Sidebar ===== -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-mark">📬</div>
+                <div>
+                    <span>Outlook 邮件</span>
+                    <small>v{{ APP_VERSION }}</small>
+                </div>
             </div>
-        </div>
-        <div class="navbar-actions">
-            <button class="navbar-btn" onclick="showRefreshModal()">全量刷新Token</button>
-            <button class="navbar-btn" onclick="showExportModal()">导出邮箱</button>
-            <button class="navbar-btn" onclick="showSettingsModal()">⚙️ 设置</button>
-            <button class="navbar-btn reset-layout-btn" onclick="showResetLayoutModal()"
-                aria-label="恢复默认布局" title="恢复默认布局">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <polyline points="1 4 1 10 7 10"></polyline>
-                    <path d="M3.51 15a9 9 0 102.13-9.36L1 10"></path>
-                </svg>
-            </button>
-            <button class="navbar-btn" onclick="logout()" style="color: #dc3545;">退出登录</button>
-        </div>
-    </nav>
 
-    <!-- 主容器 -->
-    <div class="main-container">
-        <!-- 分组面板 -->
-        <div class="group-panel resizable-panel" id="groupPanel" data-panel="groups">
-            <div class="panel-header">
-                <span class="panel-title">分组</span>
-                <div style="display: flex; align-items: center; gap: 4px;">
-                    <button class="panel-action-btn" onclick="showAddGroupModal()" title="添加分组">+</button>
-                    <button class="panel-action-btn collapse-btn" data-panel="groups" aria-label="折叠分组面板"
-                        aria-expanded="true" title="折叠分组面板">
-                        ←
-                    </button>
-                </div>
-            </div>
-            <div class="group-list" id="groupList">
-                <!-- 分组列表将通过 JS 动态加载 -->
-            </div>
-            <div class="resizer" role="separator" aria-orientation="vertical" aria-label="调整分组面板宽度"
-                aria-valuenow="200" aria-valuemin="150" aria-valuemax="400" tabindex="0" data-resizer="groups">
-            </div>
-        </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">概览</div>
+                <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+                    <span class="nav-icon">🏠</span><span>仪表盘</span>
+                </button>
 
-        <!-- 邮箱账号面板 -->
-        <div class="account-panel resizable-panel" id="accountPanel" data-panel="accounts">
-            <div class="account-panel-header">
-                <div class="account-panel-title" id="accountPanelTitle">
-                    <span class="group-color" id="currentGroupColor" style="background-color: #666"></span>
-                    <span id="currentGroupName">选择分组</span>
-                </div>
-                <div style="margin-left: auto;">
-                    <button class="panel-action-btn" onclick="showTagManagementModal()" title="管理标签">
-                        🏷️
-                    </button>
-                    <button class="panel-action-btn" onclick="showAddAccountModal()" title="导入账号">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path fill-rule="evenodd"
-                                d="M8 2a.75.75 0 01.75.75v4.5h4.5a.75.75 0 010 1.5h-4.5v4.5a.75.75 0 01-1.5 0v-4.5h-4.5a.75.75 0 010-1.5h4.5v-4.5A.75.75 0 018 2z" />
-                        </svg>
-                    </button>
-                    <button class="panel-action-btn collapse-btn" data-panel="accounts" aria-label="折叠账号面板"
-                        aria-expanded="true" title="折叠账号面板">
-                        ←
-                    </button>
-                </div>
-            </div>
-            <div class="search-container">
-                <input type="text" id="globalSearch" class="search-input" placeholder="搜索邮箱地址..." autocomplete="off">
-            </div>
-            <div class="sort-control"
-                style="padding: 8px 16px; border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; gap: 8px; background-color: #fafafa;">
-                <label style="font-size: 12px; color: #666; font-weight: 500;">排序：</label>
-                <div style="display: flex; gap: 4px;">
-                    <button class="sort-btn active" data-sort="refresh_time" onclick="sortAccounts('refresh_time')"
-                        style="padding: 4px 10px; font-size: 12px; background-color: #1a1a1a; border: 1px solid #1a1a1a; border-radius: 4px; color: #ffffff; cursor: pointer; transition: all 0.15s;">
-                        🕐 刷新时间
-                    </button>
-                    <button class="sort-btn" data-sort="email" onclick="sortAccounts('email')"
-                        style="padding: 4px 10px; font-size: 12px; background-color: #ffffff; border: 1px solid #e5e5e5; border-radius: 4px; color: #666; cursor: pointer; transition: all 0.15s;">
-                        📧 邮箱名
-                    </button>
-                </div>
-                <!-- 全选复选框 -->
-                <div style="display: flex; align-items: center; gap: 4px; margin-left: auto;">
-                    <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()"
-                        style="width: 14px; height: 14px; cursor: pointer;">
-                    <label for="selectAllCheckbox" style="font-size: 12px; color: #666; cursor: pointer;">全选</label>
-                </div>
-            </div>
-            <!-- Tag Filter Row -->
-            <div id="tagFilterContainer"
-                style="padding: 8px 16px; border-bottom: 1px solid #e5e5e5; display: flex; flex-wrap: wrap; gap: 8px; background-color: #fafafa; display: none;">
-                <!-- Tags checkboxes will be rendered here -->
-            </div>
-            <div class="account-list" id="accountList">
-                <div class="empty-state">
-                    <div class="empty-state-icon">📁</div>
-                    <div class="empty-state-text">请从左侧选择一个分组</div>
-                </div>
-            </div>
-            <!-- 批量操作栏 -->
-            <div id="batchActionBar"
-                style="display: none; padding: 8px 16px; border-top: 1px solid #e5e5e5; background: #f8f9fa; gap: 8px; align-items: center;">
-                <span id="selectedCount" style="font-size: 12px; color: #666;">已选 0 项</span>
-                <div style="flex: 1;"></div>
-                <button class="btn btn-sm btn-secondary" onclick="showBatchTagModal('add')">打标签</button>
-                <button class="btn btn-sm btn-secondary" onclick="showBatchTagModal('remove')">去标签</button>
-                <button class="btn btn-sm btn-secondary" onclick="showBatchMoveGroupModal()">移动分组</button>
-                <button class="btn btn-sm btn-danger" onclick="showBatchDeleteConfirm()" style="background-color: #dc3545; border-color: #dc3545; color: white;">删除</button>
-            </div>
-            <div class="account-panel-footer">
-                <button class="add-account-btn" onclick="showAddAccountModal()">+ 导入邮箱</button>
-            </div>
-            <div class="resizer" role="separator" aria-orientation="vertical" aria-label="调整账号面板宽度"
-                aria-valuenow="260" aria-valuemin="180" aria-valuemax="500" tabindex="0" data-resizer="accounts">
-            </div>
-        </div>
+                <div class="nav-section">邮箱管理</div>
+                <button class="nav-item" data-page="mailbox" onclick="navigate('mailbox')">
+                    <span class="nav-icon">📬</span><span>账号管理</span>
+                </button>
+                <button class="nav-item" data-page="temp-emails" onclick="navigate('temp-emails')">
+                    <span class="nav-icon">⚡</span><span>临时邮箱</span>
+                </button>
 
-        <!-- 邮件列表面板 -->
-        <div class="email-list-panel resizable-panel" id="emailListPanel" data-panel="emails">
-            <div class="email-list-header">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                    <div class="folder-tabs" id="folderTabs" style="display: none;">
-                        <button class="folder-tab active" data-folder="inbox" onclick="switchFolder('inbox')">
-                            📨 收件箱
-                        </button>
-                        <button class="folder-tab" data-folder="junkemail" onclick="switchFolder('junkemail')">
-                            ⚠️ 垃圾邮件
-                        </button>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <button class="refresh-btn" onclick="refreshEmails()">获取邮件</button>
-                        <button class="panel-action-btn collapse-btn" data-panel="emails" aria-label="折叠邮件列表面板"
-                            aria-expanded="true" title="折叠邮件列表面板">
-                            ←
-                        </button>
+                <div class="nav-section">Token</div>
+                <button class="nav-item" data-page="refresh-log" onclick="navigate('refresh-log')">
+                    <span class="nav-icon">🔄</span><span>刷新日志</span>
+                </button>
+
+                <div class="nav-section">系统</div>
+                <button class="nav-item" data-page="settings" onclick="navigate('settings')">
+                    <span class="nav-icon">⚙️</span><span>系统设置</span>
+                </button>
+                <button class="nav-item" data-page="audit" onclick="navigate('audit')">
+                    <span class="nav-icon">📋</span><span>审计日志</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="user-chip">
+                    <div class="user-avatar">管</div>
+                    <div class="user-chip-info">
+                        <div class="user-chip-name">管理员</div>
+                        <div class="user-chip-role">Outlook 管理</div>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <h2 style="margin: 0; font-size: 16px; font-weight: 600;">
-                        邮件
-                        <span class="email-count" id="emailCount"></span>
-                    </h2>
-                    <span class="method-tag" id="methodTag" style="display:none;"></span>
-                </div>
+                <button class="btn-theme" id="themeToggleBtn" onclick="toggleTheme()">☀ 浅色模式</button>
+                <button class="btn-logout" onclick="logout()">退出登录</button>
             </div>
-            <div class="email-list" id="emailList">
-                <div class="empty-state">
-                    <div class="empty-state-icon">📬</div>
-                    <div class="empty-state-text">请从左侧选择一个邮箱账号</div>
-                </div>
-            </div>
-            <!-- Email Batch Action Bar -->
-            <div id="emailBatchActionBar"
-                style="display: none; padding: 8px 16px; border-top: 1px solid #e5e5e5; background: #f8f9fa; gap: 8px; align-items: center;">
-                <span id="emailSelectedCount" style="font-size: 12px; color: #666;">已选 0 项</span>
-                <div style="flex: 1;"></div>
-                <button class="batch-btn danger" onclick="confirmBatchDeleteEmails()">
-                    🗑️ 删除
-                </button>
-            </div>
-            <div class="resizer" role="separator" aria-orientation="vertical" aria-label="调整邮件列表面板宽度"
-                aria-valuenow="380" aria-valuemin="280" aria-valuemax="600" tabindex="0" data-resizer="emails">
-            </div>
-        </div>
+        </aside>
 
-        <!-- 邮件详情面板（不可折叠） -->
-        <div class="email-detail-panel">
-            <div class="email-detail-toolbar" id="emailDetailToolbar" style="display:none;">
-                <button class="back-btn" onclick="showEmailList()">← 返回</button>
-                <button class="toggle-list-btn" onclick="toggleEmailList()">
-                    <span id="toggleListText">隐藏列表</span>
-                </button>
-                <button class="fullscreen-btn" onclick="openFullscreenEmail()">🔍 全屏查看</button>
-                <label
-                    style="display: flex; align-items: center; gap: 6px; font-size: 13px; margin-left: 12px; cursor: pointer;">
-                    <input type="checkbox" id="trustEmailCheckbox" onchange="toggleTrustMode(this)">
-                    <span style="user-select: none;">信任此邮件</span>
-                </label>
-                <div style="flex: 1;"></div>
-                <button class="batch-btn danger" onclick="confirmDeleteCurrentEmail()"
-                    style="padding: 4px 8px; font-size: 12px;">
-                    🗑️ 删除
-                </button>
+        <!-- Mobile sidebar backdrop -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+        <!-- ===== Content ===== -->
+        <div class="content">
+            <!-- Topbar -->
+            <header class="topbar" id="topbar">
+                <div class="topbar-left">
+                    <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+                    <div>
+                        <div class="topbar-title" id="topbarTitle">仪表盘</div>
+                        <div class="topbar-subtitle" id="topbarSubtitle">系统概览</div>
+                    </div>
+                </div>
+                <div id="topbar-actions"></div>
+            </header>
+
+            <!-- Refresh progress bar (hidden by default) -->
+            <div class="refresh-progress-bar" id="refreshProgressBar" style="display:none;">
+                <span>🔄</span>
+                <span class="progress-text" id="refreshProgressText">正在刷新 Token…</span>
+                <div class="progress-track">
+                    <div class="progress-fill" id="refreshProgressFill" style="width:0%"></div>
+                </div>
+                <span class="progress-text" id="refreshProgressCount">0 / 0</span>
+                <button class="btn btn-sm btn-ghost" onclick="stopRefresh()">停止</button>
             </div>
-            <div id="emailDetail">
-                <div class="empty-state">
-                    <div class="empty-state-icon">📄</div>
-                    <div class="empty-state-text">选择一封邮件查看详情</div>
+
+            <!-- ===== Page: Dashboard ===== -->
+            <div class="page" id="page-dashboard">
+                <div class="stat-grid" id="dashboardStats">
+                    <div class="stat-card">
+                        <div class="stat-label">总账号数</div>
+                        <div class="stat-value" id="statTotalAccounts">-</div>
+                    </div>
+                    <div class="stat-card stat-success">
+                        <div class="stat-label">Token 有效</div>
+                        <div class="stat-value" id="statValidTokens">-</div>
+                    </div>
+                    <div class="stat-card stat-danger">
+                        <div class="stat-label">Token 过期</div>
+                        <div class="stat-value" id="statExpiredTokens">-</div>
+                    </div>
+                    <div class="stat-card stat-accent">
+                        <div class="stat-label">临时邮箱</div>
+                        <div class="stat-value" id="statTempEmails">-</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">📂 分组概览</div>
+                        </div>
+                        <div class="card-body" style="padding:0;">
+                            <ul class="dashboard-list" id="dashboardGroupList">
+                                <li><span class="loading-overlay"><span class="spinner"></span> 加载中…</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">🔄 最近刷新</div>
+                        </div>
+                        <div class="card-body" style="padding:0;">
+                            <ul class="dashboard-list" id="dashboardRefreshList">
+                                <li><span class="loading-overlay"><span class="spinner"></span> 加载中…</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Page: Mailbox (3-column) ===== -->
+            <div class="page page-hidden page-no-padding" id="page-mailbox">
+                <div class="mailbox-layout">
+                    <!-- Groups Column -->
+                    <div class="groups-column" id="groupPanel">
+                        <div class="column-header">
+                            <span class="column-title">分组</span>
+                            <button class="btn-icon" onclick="showAddGroupModal()" title="添加分组">+</button>
+                        </div>
+                        <div class="column-search">
+                            <input type="text" id="groupSearchInput" placeholder="搜索分组…" oninput="filterGroups(this.value)">
+                        </div>
+                        <div class="column-body" id="groupList">
+                            <div class="loading-overlay"><span class="spinner"></span> 加载中…</div>
+                        </div>
+                    </div>
+
+                    <!-- Resize Handle 1 -->
+                    <div class="resize-handle" id="resizeHandle1" data-left="groupPanel" data-right="accountPanel"></div>
+
+                    <!-- Accounts Column -->
+                    <div class="accounts-column" id="accountPanel">
+                        <div class="column-header">
+                            <span class="column-title">
+                                <span class="group-color-dot" id="currentGroupColor" style="background-color:#666;"></span>
+                                <span id="currentGroupName">选择分组</span>
+                            </span>
+                            <div style="display:flex;gap:4px;">
+                                <button class="btn-icon" onclick="showTagManagementModal()" title="管理标签">🏷️</button>
+                                <button class="btn-icon" onclick="showAddAccountModal()" title="导入账号">+</button>
+                            </div>
+                        </div>
+                        <div class="column-search">
+                            <input type="text" id="globalSearch" placeholder="搜索邮箱地址…" autocomplete="off">
+                        </div>
+                        <div style="padding:6px 12px;border-bottom:1px solid var(--border-light);display:flex;align-items:center;gap:8px;font-size:0.78rem;flex-shrink:0;">
+                            <label style="color:var(--text-muted);font-weight:500;">排序：</label>
+                            <button class="btn btn-sm sort-btn active" data-sort="refresh_time" onclick="sortAccounts('refresh_time')">🕐 刷新时间</button>
+                            <button class="btn btn-sm sort-btn" data-sort="email" onclick="sortAccounts('email')">📧 邮箱名</button>
+                            <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+                                <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll()" style="cursor:pointer;">
+                                <label for="selectAllCheckbox" style="font-size:0.72rem;color:var(--text-muted);cursor:pointer;">全选</label>
+                            </div>
+                        </div>
+                        <div id="tagFilterContainer" style="padding:6px 12px;border-bottom:1px solid var(--border-light);display:none;flex-wrap:wrap;gap:6px;"></div>
+                        <div class="column-body" id="accountList">
+                            <div class="empty-state">
+                                <span class="empty-icon">📁</span>
+                                <p>请从左侧选择一个分组</p>
+                            </div>
+                        </div>
+                        <div id="batchActionBar" class="batch-action-bar" style="display:none;">
+                            <span id="selectedCount" style="font-size:0.78rem;color:var(--text-muted);">已选 0 项</span>
+                            <div style="flex:1;"></div>
+                            <button class="btn btn-sm btn-ghost" onclick="showBatchTagModal('add')">打标签</button>
+                            <button class="btn btn-sm btn-ghost" onclick="showBatchTagModal('remove')">去标签</button>
+                            <button class="btn btn-sm btn-ghost" onclick="showBatchMoveGroupModal()">移动分组</button>
+                            <button class="btn btn-sm btn-danger" onclick="showBatchDeleteConfirm()">删除</button>
+                        </div>
+                    </div>
+
+                    <!-- Resize Handle 2 -->
+                    <div class="resize-handle" id="resizeHandle2" data-left="accountPanel" data-right="emailListPanel"></div>
+
+                    <!-- Emails Column -->
+                    <div class="emails-column" id="emailListPanel">
+                        <div class="column-header">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div class="email-tabs" id="folderTabs" style="display:none;border:none;">
+                                    <button class="email-tab active" data-folder="inbox" onclick="switchFolder('inbox')">📨 收件箱</button>
+                                    <button class="email-tab" data-folder="junkemail" onclick="switchFolder('junkemail')">⚠️ 垃圾邮件</button>
+                                </div>
+                                <span style="font-size:0.82rem;color:var(--text-muted);" id="emailCount"></span>
+                                <span id="methodTag" style="display:none;" class="badge badge-gray"></span>
+                            </div>
+                            <div style="display:flex;gap:4px;">
+                                <button class="btn btn-sm btn-primary" onclick="refreshEmails()">获取邮件</button>
+                            </div>
+                        </div>
+                        <!-- Current account info bar -->
+                        <div id="currentAccountBar" style="display:none;padding:0.5rem 1rem;background:var(--bg-card);border-bottom:1px solid var(--border-light);font-size:0.82rem;">
+                            <span id="currentAccount" onclick="copyCurrentEmail()" title="点击复制邮箱地址" style="cursor:pointer;">
+                                当前邮箱：<strong id="currentAccountEmail"></strong>
+                            </span>
+                        </div>
+                        <div class="column-body" id="emailList">
+                            <div class="empty-state">
+                                <span class="empty-icon">📬</span>
+                                <p>请从左侧选择一个邮箱账号</p>
+                            </div>
+                        </div>
+                        <div id="emailBatchActionBar" class="batch-action-bar" style="display:none;">
+                            <span id="emailSelectedCount" style="font-size:0.78rem;color:var(--text-muted);">已选 0 项</span>
+                            <div style="flex:1;"></div>
+                            <button class="btn btn-sm btn-danger" onclick="confirmBatchDeleteEmails()">🗑️ 删除</button>
+                        </div>
+                        <!-- Email Detail (inline below email list) -->
+                        <div id="emailDetailSection" style="display:none;border-top:1px solid var(--border);">
+                            <div class="email-detail-toolbar" id="emailDetailToolbar">
+                                <button class="btn btn-sm btn-ghost" onclick="showEmailList()">← 返回</button>
+                                <button class="btn btn-sm btn-ghost" onclick="openFullscreenEmail()">🔍 全屏查看</button>
+                                <button class="btn btn-sm btn-accent" onclick="extractVerificationFromDetail(this)" title="从邮件正文提取验证码/链接" style="font-size:0.72rem;padding:2px 8px;">🔑 验证码</button>
+                                <label style="display:flex;align-items:center;gap:4px;font-size:0.78rem;margin-left:8px;cursor:pointer;">
+                                    <input type="checkbox" id="trustEmailCheckbox" onchange="toggleTrustMode(this)">
+                                    <span style="user-select:none;">信任此邮件</span>
+                                </label>
+                                <div style="flex:1;"></div>
+                                <button class="btn btn-sm btn-danger" onclick="confirmDeleteCurrentEmail()">🗑️ 删除</button>
+                            </div>
+                            <div class="email-detail-container" id="emailDetail">
+                                <div class="empty-state">
+                                    <span class="empty-icon">📄</span>
+                                    <p>选择一封邮件查看详情</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Page: Temp Emails ===== -->
+            <div class="page page-hidden page-no-padding" id="page-temp-emails">
+                <div class="mailbox-layout">
+                    <!-- Temp Email List Column -->
+                    <div class="accounts-column" id="tempEmailPanel" style="width:300px;">
+                        <div class="column-header">
+                            <span class="column-title">⚡ 临时邮箱</span>
+                            <button class="btn btn-sm btn-primary" onclick="generateTempEmail()">+ 创建</button>
+                        </div>
+                        <div class="column-body" id="tempEmailContainer">
+                            <div class="empty-state">
+                                <span class="empty-icon">📭</span>
+                                <p>暂无临时邮箱</p>
+                                <button class="btn btn-primary" onclick="generateTempEmail()">创建第一个临时邮箱</button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Temp Email Messages Column -->
+                    <div class="emails-column">
+                        <div class="column-header">
+                            <span class="column-title" id="tempEmailCurrentName">选择一个临时邮箱</span>
+                            <div style="display:flex;gap:4px;">
+                                <button class="btn btn-sm btn-ghost" id="tempEmailRefreshBtn" onclick="if(currentAccount && isTempEmailGroup) loadTempEmailMessages(currentAccount)" style="display:none;">🔄 获取邮件</button>
+                            </div>
+                        </div>
+                        <div class="column-body" id="tempEmailMessageList">
+                            <div class="empty-state">
+                                <span class="empty-icon">📬</span>
+                                <p>选择一个临时邮箱查看邮件</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Page: Refresh Log ===== -->
+            <div class="page page-hidden" id="page-refresh-log">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">🔄 刷新日志</div>
+                    </div>
+                    <div class="card-body" id="refreshLogContainer">
+                        <div class="loading-overlay"><span class="spinner"></span> 加载中…</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Page: Settings ===== -->
+            <div class="page page-hidden" id="page-settings" style="padding: 1.5rem; max-width: 720px;">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">⚙️ 系统设置</div>
+                    </div>
+                    <div class="card-body" style="padding: 1.5rem;">
+                        <!-- 基础设置 -->
+                        <div class="form-group">
+                            <label class="form-label">登录密码</label>
+                            <input type="password" class="form-input" id="settingsPassword" placeholder="输入新密码（留空则不修改）">
+                            <div class="form-hint">用于登录系统的密码</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">GPTMail API Key</label>
+                            <input type="text" class="form-input" id="settingsApiKey" placeholder="输入 GPTMail API Key">
+                            <div class="form-hint">用于临时邮箱功能，可从 <a href="https://mail.chatgpt.org.uk/api" target="_blank" style="color: var(--clr-primary);">gptmail.io</a> 获取</div>
+                        </div>
+
+                        <!-- Token 刷新设置 -->
+                        <div style="border-top: 1px solid var(--border-light); margin: 1.5rem 0; padding-top: 1.5rem;">
+                            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem; color: var(--text);">🔄 Token 刷新设置</h4>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="enableScheduledRefresh" checked>
+                                    <span class="form-label" style="margin: 0;">启用定时刷新</span>
+                                </label>
+                                <div class="form-hint">关闭后将不会自动执行定时刷新任务</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">刷新策略</label>
+                                <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                        <input type="radio" name="refreshStrategy" value="days" checked onchange="toggleRefreshStrategy()">
+                                        <span>按天数</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                        <input type="radio" name="refreshStrategy" value="cron" onchange="toggleRefreshStrategy()">
+                                        <span>Cron 表达式</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="daysStrategyContainer">
+                                <div class="form-group">
+                                    <label class="form-label">定时刷新周期 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">（每隔 X 天自动刷新所有账号）</span></label>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <input type="number" class="form-input" id="refreshIntervalDays" min="1" max="90" value="30" placeholder="30" style="max-width: 120px;">
+                                        <span style="font-size: 0.88rem; color: var(--text-muted); font-weight: 500;">天</span>
+                                    </div>
+                                    <div class="form-hint">建议设置为 30 天，防止 Token 因 90 天不使用而过期</div>
+                                </div>
+                            </div>
+                            <div id="cronStrategyContainer" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label">Cron 表达式</label>
+                                    <input type="text" class="form-input" id="refreshCron" placeholder="0 2 * * *" value="0 2 * * *">
+                                    <div class="form-hint">格式：分 时 日 月 星期（例如：0 2 * * * 表示每天凌晨 2:00）</div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">常用样例</label>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px;">
+                                        <button class="btn btn-sm btn-secondary" onclick="selectCronExample('0 2 * * *')">每天凌晨 2:00</button>
+                                        <button class="btn btn-sm btn-secondary" onclick="selectCronExample('0 2 * * 1')">每周一凌晨 2:00</button>
+                                        <button class="btn btn-sm btn-secondary" onclick="selectCronExample('0 2 1 * *')">每月 1 号凌晨 2:00</button>
+                                        <button class="btn btn-sm btn-secondary" onclick="selectCronExample('0 2 */3 * *')">每 3 天凌晨 2:00</button>
+                                        <button class="btn btn-sm btn-secondary" onclick="selectCronExample('0 */12 * * *')">每 12 小时</button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <button class="btn btn-secondary" onclick="validateCronExpression()">验证表达式</button>
+                                    <div id="cronValidationResult" style="margin-top: 8px; font-size: 0.82rem;"></div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">邮箱间刷新间隔 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">（每个邮箱刷新之间的等待时间）</span></label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="number" class="form-input" id="refreshDelaySeconds" min="0" max="60" value="5" placeholder="5" style="max-width: 120px;">
+                                    <span style="font-size: 0.88rem; color: var(--text-muted); font-weight: 500;">秒</span>
+                                </div>
+                                <div class="form-hint">建议设置为 5-10 秒，避免频繁请求触发 API 限流</div>
+                            </div>
+                        </div>
+
+                        <!-- 自动轮询设置 -->
+                        <div style="border-top: 1px solid var(--border-light); margin: 1.5rem 0; padding-top: 1.5rem;">
+                            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 1rem; color: var(--text);">🔔 自动轮询设置</h4>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="enableAutoPolling">
+                                    <span class="form-label" style="margin: 0;">启用自动轮询</span>
+                                </label>
+                                <div class="form-hint">开启后自动检查当前账号是否有新邮件</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">轮询间隔 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">（检查新邮件的时间间隔）</span></label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="number" class="form-input" id="pollingInterval" min="5" max="300" value="10" placeholder="10" style="max-width: 120px;">
+                                    <span style="font-size: 0.88rem; color: var(--text-muted); font-weight: 500;">秒</span>
+                                </div>
+                                <div class="form-hint">范围：5-300 秒，建议设置为 10-30 秒</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">轮询次数 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">（最多轮询多少次后停止）</span></label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="number" class="form-input" id="pollingCount" min="1" max="100" value="5" placeholder="5" style="max-width: 120px;">
+                                    <span style="font-size: 0.88rem; color: var(--text-muted); font-weight: 500;">次</span>
+                                </div>
+                                <div class="form-hint">范围：1-100 次，设置为 0 表示持续轮询</div>
+                            </div>
+                        </div>
+
+                        <!-- 保存按钮 -->
+                        <div style="display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-light);">
+                            <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Page: Audit ===== -->
+            <div class="page page-hidden" id="page-audit">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">📋 审计日志</div>
+                    </div>
+                    <div class="card-body" id="auditLogContainer">
+                        <div class="loading-overlay"><span class="spinner"></span> 加载中…</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" aria-live="polite"></div>
 
     {% include 'partials/modals.html' %}
 

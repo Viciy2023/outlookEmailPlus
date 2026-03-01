@@ -2,19 +2,19 @@
 
         // 选择账号
         function selectAccount(email) {
-            // 静默停止之前的轮询
             if (typeof stopPolling === 'function') {
-                stopPolling(true); // silent = true
+                stopPolling(true);
             }
 
             currentAccount = email;
             isTempEmailGroup = false;
-            currentFolder = 'inbox'; // 重置为收件箱
+            currentFolder = 'inbox';
 
-            document.getElementById('currentAccount').classList.add('show');
+            document.getElementById('currentAccountBar').style.display = '';
             document.getElementById('currentAccountEmail').textContent = email;
 
-            document.querySelectorAll('.account-item').forEach(item => {
+            // Update active state on account cards
+            document.querySelectorAll('.account-card').forEach(item => {
                 item.classList.remove('active');
                 const emailEl = item.querySelector('.account-email');
                 if (emailEl && emailEl.textContent.includes(email)) {
@@ -22,11 +22,9 @@
                 }
             });
 
-            // 显示文件夹切换按钮
             const folderTabs = document.getElementById('folderTabs');
             if (folderTabs) {
                 folderTabs.style.display = 'flex';
-                // 重置为收件箱
                 document.querySelectorAll('.folder-tab').forEach(tab => {
                     tab.classList.toggle('active', tab.dataset.folder === 'inbox');
                 });
@@ -34,7 +32,6 @@
 
             const cacheKey = `${email}_inbox`;
 
-            // 检查缓存
             if (emailListCache[cacheKey]) {
                 const cache = emailListCache[cacheKey];
                 currentEmails = cache.emails;
@@ -42,7 +39,6 @@
                 currentSkip = cache.skip;
                 currentMethod = cache.method || 'graph';
 
-                // 恢复 UI
                 const methodTag = document.getElementById('methodTag');
                 methodTag.textContent = currentMethod;
                 methodTag.style.display = 'inline';
@@ -52,8 +48,8 @@
             } else {
                 document.getElementById('emailList').innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📬</div>
-                        <div class="empty-state-text">点击"获取邮件"按钮获取邮件</div>
+                        <span class="empty-icon">📬</span>
+                        <p>点击"获取邮件"按钮获取邮件</p>
                     </div>
                 `;
                 document.getElementById('emailCount').textContent = '';
@@ -63,8 +59,8 @@
 
             document.getElementById('emailDetail').innerHTML = `
                 <div class="empty-state">
-                    <div class="empty-state-icon">📄</div>
-                    <div class="empty-state-text">选择一封邮件查看详情</div>
+                    <span class="empty-icon">📄</span>
+                    <p>选择一封邮件查看详情</p>
                 </div>
             `;
             document.getElementById('emailDetailToolbar').style.display = 'none';
@@ -232,17 +228,15 @@
 
                     if (currentAccount === email) {
                         currentAccount = null;
-                        document.getElementById('currentAccount').classList.remove('show');
+                        document.getElementById('currentAccountBar').style.display = 'none';
                         document.getElementById('emailList').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📬</div>
-                                <div class="empty-state-text">请从左侧选择一个邮箱账号</div>
+                                <span class="empty-icon">📬</span><p>请从左侧选择一个邮箱账号</p>
                             </div>
                         `;
                         document.getElementById('emailDetail').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📄</div>
-                                <div class="empty-state-text">选择一封邮件查看详情</div>
+                                <span class="empty-icon">📄</span><p>选择一封邮件查看详情</p>
                             </div>
                         `;
                     }
@@ -310,17 +304,15 @@
 
                     if (currentAccount === email) {
                         currentAccount = null;
-                        document.getElementById('currentAccount').classList.remove('show');
+                        document.getElementById('currentAccountBar').style.display = 'none';
                         document.getElementById('emailList').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📬</div>
-                                <div class="empty-state-text">请从左侧选择一个邮箱账号</div>
+                                <span class="empty-icon">📬</span><p>请从左侧选择一个邮箱账号</p>
                             </div>
                         `;
                         document.getElementById('emailDetail').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📄</div>
-                                <div class="empty-state-text">选择一封邮件查看详情</div>
+                                <span class="empty-icon">📄</span><p>选择一封邮件查看详情</p>
                             </div>
                         `;
                     }
@@ -354,31 +346,29 @@
         // 加载导出分组列表
         async function loadExportGroupList() {
             const container = document.getElementById('exportGroupList');
-            container.innerHTML = '<div class="loading loading-small"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span></div>';
 
             try {
-                // 使用已加载的分组数据
                 if (groups.length === 0) {
-                    container.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">暂无分组</div>';
+                    container.innerHTML = '<div class="empty-state"><p>暂无分组</p></div>';
                 } else {
                     container.innerHTML = groups.map(group => `
-                        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-radius: 6px; transition: background-color 0.15s;"
-                               onmouseover="this.style.backgroundColor='#f5f5f5'"
+                        <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; border-radius: var(--radius); transition: background-color 0.15s;"
+                               onmouseover="this.style.backgroundColor='var(--bg-hover)'"
                                onmouseout="this.style.backgroundColor='transparent'">
-                            <input type="checkbox" class="export-group-checkbox" value="${group.id}" style="width: 16px; height: 16px;">
+                            <input type="checkbox" class="export-group-checkbox" value="${group.id}">
                             <span style="display: flex; align-items: center; gap: 8px; flex: 1;">
-                                <span style="width: 12px; height: 12px; border-radius: 3px; background-color: ${group.color || '#666'}"></span>
-                                <span style="font-size: 14px; color: #1a1a1a;">${escapeHtml(group.name)}</span>
+                                <span class="group-color-dot" style="background-color: ${group.color || '#666'}"></span>
+                                <span style="font-size: 0.9rem; color: var(--text);">${escapeHtml(group.name)}</span>
                             </span>
-                            <span style="font-size: 12px; color: #999; background-color: #f0f0f0; padding: 2px 8px; border-radius: 10px;">${group.account_count || 0}</span>
+                            <span class="badge-count">${group.account_count || 0}</span>
                         </label>
                     `).join('');
                 }
             } catch (error) {
-                container.innerHTML = '<div style="padding: 20px; text-align: center; color: #dc3545;">加载失败</div>';
+                container.innerHTML = '<div class="empty-state"><p style="color:var(--clr-danger)">加载失败</p></div>';
             }
 
-            // 重置全选复选框
             document.getElementById('selectAllGroups').checked = false;
         }
 

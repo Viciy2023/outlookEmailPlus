@@ -3,13 +3,16 @@
         // 加载临时邮箱列表
         async function loadTempEmails(forceRefresh = false) {
             const container = document.getElementById('accountList');
+            const pageContainer = document.getElementById('tempEmailContainer');
 
             if (!forceRefresh && accountsCache['temp']) {
                 renderTempEmailList(accountsCache['temp']);
                 return;
             }
 
-            container.innerHTML = '<div class="loading loading-small"><div class="loading-spinner"></div></div>';
+            const loadingHTML = '<div class="loading-overlay"><span class="spinner"></span> 加载中…</div>';
+            if (container) container.innerHTML = loadingHTML;
+            if (pageContainer) pageContainer.innerHTML = loadingHTML;
 
             try {
                 const response = await fetch('/api/temp-emails');
@@ -26,50 +29,70 @@
                     }
                 }
             } catch (error) {
-                container.innerHTML = '<div class="empty-state"><div class="empty-state-text">加载失败</div></div>';
+                const errHTML = '<div class="empty-state"><p>加载失败</p></div>';
+                if (container) container.innerHTML = errHTML;
+                if (pageContainer) pageContainer.innerHTML = errHTML;
             }
         }
 
         // 渲染临时邮箱列表
         function renderTempEmailList(emails) {
             const container = document.getElementById('accountList');
+            const pageContainer = document.getElementById('tempEmailContainer');
 
             if (emails.length === 0) {
-                container.innerHTML = `
+                const emptyAccountHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">⚡</div>
-                        <div class="empty-state-text">暂无临时邮箱<br>点击下方按钮生成</div>
+                        <span class="empty-icon">⚡</span>
+                        <p>暂无临时邮箱<br>点击按钮生成</p>
                     </div>
                 `;
+                const emptyPageHTML = `
+                    <div class="empty-state">
+                        <span class="empty-icon">📭</span>
+                        <p>暂无临时邮箱</p>
+                        <button class="btn btn-primary" onclick="generateTempEmail()">创建第一个临时邮箱</button>
+                    </div>
+                `;
+                if (container) container.innerHTML = emptyAccountHTML;
+                if (pageContainer) pageContainer.innerHTML = emptyPageHTML;
                 return;
             }
 
-            container.innerHTML = emails.map(email => `
-                <div class="account-item ${currentAccount === email.email ? 'active' : ''}"
+            const colors = ['var(--clr-accent)', 'var(--clr-jade)', 'var(--clr-primary)', '#6C5CE7', '#00B894', '#E17055'];
+
+            const cardHTML = emails.map((email, idx) => {
+                const initial = (email.email || '?')[0].toUpperCase();
+                const color = colors[idx % colors.length];
+                return `
+                <div class="account-card ${currentAccount === email.email ? 'active' : ''}"
                      onclick="selectTempEmail('${escapeJs(email.email)}')">
-                    <div class="account-email" title="${escapeHtml(email.email)}">
-                        ${escapeHtml(email.email)}
+                    <div class="account-card-top">
+                        <div class="account-avatar" style="background:${color};">${initial}</div>
+                        <div class="account-info">
+                            <div class="account-email" onclick="event.stopPropagation(); copyEmail('${escapeJs(email.email)}')" style="cursor:pointer;" title="点击复制">${escapeHtml(email.email)}</div>
+                            <div style="font-size:0.72rem;color:var(--text-muted);">⚡ 临时邮箱</div>
+                        </div>
                     </div>
-                    <div class="account-actions">
-                        <button class="account-action-btn" onclick="event.stopPropagation(); copyEmail('${escapeJs(email.email)}')" title="复制邮箱">复制</button>
-                        <button class="account-action-btn" onclick="event.stopPropagation(); clearTempEmailMessages('${escapeJs(email.email)}')" title="清空邮件">清空</button>
-                        <button class="account-action-btn delete" onclick="event.stopPropagation(); deleteTempEmail('${escapeJs(email.email)}')" title="删除">删除</button>
+                    <div class="account-card-bottom">
+                        <div class="account-actions">
+                            <button class="btn btn-sm btn-accent" onclick="event.stopPropagation(); copyVerificationInfo('${escapeJs(email.email)}', this)" title="提取验证码" style="font-size:0.72rem;padding:2px 8px;">🔑 验证码</button>
+                            <button class="btn-icon" onclick="event.stopPropagation(); copyEmail('${escapeJs(email.email)}')" title="复制">📋</button>
+                            <button class="btn-icon" onclick="event.stopPropagation(); clearTempEmailMessages('${escapeJs(email.email)}')" title="清空">🧹</button>
+                            <button class="btn-icon" onclick="event.stopPropagation(); deleteTempEmail('${escapeJs(email.email)}')" title="删除" style="color:var(--clr-danger);">🗑️</button>
+                        </div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
+
+            if (container) container.innerHTML = cardHTML;
+            if (pageContainer) pageContainer.innerHTML = cardHTML;
         }
 
         // 生成临时邮箱
         async function generateTempEmail() {
-            // 获取按钮并显示加载状态
-            const btn = document.querySelector('.account-panel-footer .add-account-btn');
-            const originalText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '⏳ 生成中...';
-            btn.style.opacity = '0.7';
-            btn.style.cursor = 'not-allowed';
-
             try {
+                showToast('正在生成临时邮箱…', 'info');
                 const response = await fetch('/api/temp-emails/generate', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -97,12 +120,6 @@
                 }
             } catch (error) {
                 showToast('生成临时邮箱失败', 'error');
-            } finally {
-                // 恢复按钮状态
-                btn.disabled = false;
-                btn.textContent = originalText;
-                btn.style.opacity = '1';
-                btn.style.cursor = 'pointer';
             }
         }
 
@@ -111,10 +128,14 @@
             currentAccount = email;
             isTempEmailGroup = true;
 
-            document.getElementById('currentAccount').classList.add('show');
-            document.getElementById('currentAccountEmail').textContent = email + ' (临时)';
+            // Update mailbox page bar (if visible)
+            const bar = document.getElementById('currentAccountBar');
+            if (bar) bar.style.display = '';
+            const emailLabel = document.getElementById('currentAccountEmail');
+            if (emailLabel) emailLabel.textContent = email + ' (临时)';
 
-            document.querySelectorAll('.account-item').forEach(item => {
+            // Update active state on all account cards
+            document.querySelectorAll('.account-card').forEach(item => {
                 item.classList.remove('active');
                 const emailEl = item.querySelector('.account-email');
                 if (emailEl && emailEl.textContent.includes(email)) {
@@ -122,28 +143,39 @@
                 }
             });
 
-            // 隐藏文件夹切换按钮（临时邮箱不支持文件夹）
+            // Update temp-emails independent page header
+            const tempName = document.getElementById('tempEmailCurrentName');
+            if (tempName) tempName.textContent = email;
+            const tempRefreshBtn = document.getElementById('tempEmailRefreshBtn');
+            if (tempRefreshBtn) tempRefreshBtn.style.display = '';
+
+            // Hide folder tabs (temp emails don't support folders)
             const folderTabs = document.getElementById('folderTabs');
-            if (folderTabs) {
-                folderTabs.style.display = 'none';
+            if (folderTabs) folderTabs.style.display = 'none';
+
+            // Show loading in message area (prefer temp-emails page container)
+            const tempMsgList = document.getElementById('tempEmailMessageList');
+            const emailList = document.getElementById('emailList');
+            const loadingHTML = '<div class="empty-state"><span class="empty-icon">📬</span><p>点击 🔄 获取邮件 按钮加载邮件</p></div>';
+
+            if (tempMsgList) tempMsgList.innerHTML = loadingHTML;
+            if (emailList) {
+                emailList.innerHTML = loadingHTML;
             }
 
-            document.getElementById('emailList').innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📬</div>
-                    <div class="empty-state-text">点击"获取邮件"按钮获取邮件</div>
-                </div>
-            `;
+            const emailDetail = document.getElementById('emailDetail');
+            if (emailDetail) {
+                emailDetail.innerHTML = '<div class="empty-state"><span class="empty-icon">📄</span><p>选择一封邮件查看详情</p></div>';
+            }
+            const toolbar = document.getElementById('emailDetailToolbar');
+            if (toolbar) toolbar.style.display = 'none';
+            const count = document.getElementById('emailCount');
+            if (count) count.textContent = '';
+            const tag = document.getElementById('methodTag');
+            if (tag) tag.style.display = 'none';
 
-            document.getElementById('emailDetail').innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📄</div>
-                    <div class="empty-state-text">选择一封邮件查看详情</div>
-                </div>
-            `;
-            document.getElementById('emailDetailToolbar').style.display = 'none';
-            document.getElementById('emailCount').textContent = '';
-            document.getElementById('methodTag').style.display = 'none';
+            // Auto-fetch messages
+            loadTempEmailMessages(email);
         }
 
         // 清空临时邮箱的所有邮件
@@ -168,14 +200,12 @@
                         document.getElementById('emailCount').textContent = '(0)';
                         document.getElementById('emailList').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📭</div>
-                                <div class="empty-state-text">收件箱为空</div>
+                                <span class="empty-icon">📭</span><p>收件箱为空</p>
                             </div>
                         `;
                         document.getElementById('emailDetail').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📄</div>
-                                <div class="empty-state-text">选择一封邮件查看详情</div>
+                                <span class="empty-icon">📄</span><p>选择一封邮件查看详情</p>
                             </div>
                         `;
                         document.getElementById('emailDetailToolbar').style.display = 'none';
@@ -207,17 +237,15 @@
 
                     if (currentAccount === email) {
                         currentAccount = null;
-                        document.getElementById('currentAccount').classList.remove('show');
+                        document.getElementById('currentAccountBar').style.display = 'none';
                         document.getElementById('emailList').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📬</div>
-                                <div class="empty-state-text">请从左侧选择一个邮箱账号</div>
+                                <span class="empty-icon">📬</span><p>请从左侧选择一个邮箱账号</p>
                             </div>
                         `;
                         document.getElementById('emailDetail').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">📄</div>
-                                <div class="empty-state-text">选择一封邮件查看详情</div>
+                                <span class="empty-icon">📄</span><p>选择一封邮件查看详情</p>
                             </div>
                         `;
                     }
@@ -235,10 +263,14 @@
         // 加载临时邮箱的邮件
         async function loadTempEmailMessages(email) {
             const container = document.getElementById('emailList');
-            container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+            const tempContainer = document.getElementById('tempEmailMessageList');
+            const loadingHTML = '<div class="loading-overlay"><span class="spinner"></span></div>';
+
+            if (container) container.innerHTML = loadingHTML;
+            if (tempContainer) tempContainer.innerHTML = loadingHTML;
 
             // 禁用按钮
-            const refreshBtn = document.querySelector('.refresh-btn');
+            const refreshBtn = document.getElementById('tempEmailRefreshBtn');
             if (refreshBtn) {
                 refreshBtn.disabled = true;
                 refreshBtn.textContent = '获取中...';
@@ -253,37 +285,61 @@
                     currentMethod = 'gptmail';
 
                     const methodTag = document.getElementById('methodTag');
-                    methodTag.textContent = 'GPTMail';
-                    methodTag.style.display = 'inline';
-                    methodTag.style.backgroundColor = '#00bcf2';
-                    methodTag.style.color = 'white';
+                    if (methodTag) {
+                        methodTag.textContent = 'GPTMail';
+                        methodTag.style.display = 'inline';
+                        methodTag.style.backgroundColor = '#00bcf2';
+                        methodTag.style.color = 'white';
+                    }
 
-                    document.getElementById('emailCount').textContent = `(${data.count})`;
+                    const emailCount = document.getElementById('emailCount');
+                    if (emailCount) emailCount.textContent = `(${data.count})`;
 
+                    // Render to mailbox emailList
                     renderEmailList(data.emails);
+
+                    // Also render to temp-emails page container
+                    if (tempContainer) {
+                        renderTempEmailMessageList(tempContainer, data.emails);
+                    }
                 } else {
                     handleApiError(data, '加载临时邮件失败');
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">⚠️</div>
-                            <div class="empty-state-text">${data.error && data.error.message ? data.error.message : '加载失败'}</div>
-                        </div>
-                    `;
+                    const errHTML = `<div class="empty-state"><span class="empty-icon">⚠️</span><p>${data.error && data.error.message ? data.error.message : '加载失败'}</p></div>`;
+                    if (container) container.innerHTML = errHTML;
+                    if (tempContainer) tempContainer.innerHTML = errHTML;
                 }
             } catch (error) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <div class="empty-state-text">网络错误，请重试</div>
-                    </div>
-                `;
+                const errHTML = '<div class="empty-state"><span class="empty-icon">⚠️</span><p>网络错误，请重试</p></div>';
+                if (container) container.innerHTML = errHTML;
+                if (tempContainer) tempContainer.innerHTML = errHTML;
             } finally {
-                // 启用按钮
                 if (refreshBtn) {
                     refreshBtn.disabled = false;
-                    refreshBtn.textContent = '获取邮件';
+                    refreshBtn.textContent = '🔄 获取邮件';
                 }
             }
+        }
+
+        // 渲染临时邮箱邮件列表到独立页面
+        function renderTempEmailMessageList(container, emails) {
+            if (!emails || emails.length === 0) {
+                container.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span><p>暂无邮件</p></div>';
+                return;
+            }
+            container.innerHTML = emails.map((email, index) => {
+                const subject = email.subject || '(无主题)';
+                const from = email.from || email.sender || '未知发件人';
+                const date = email.receivedDateTime || email.date || '';
+                const preview = (email.bodyPreview || email.body_preview || '').substring(0, 80);
+                return `
+                    <div class="email-item ${index === 0 ? '' : ''}" onclick="getTempEmailDetail('${escapeJs(email.id || email.message_id || '')}', ${index})">
+                        <div class="email-subject">${escapeHtml(subject)}</div>
+                        <div class="email-from">${escapeHtml(from)}</div>
+                        <div class="email-preview">${escapeHtml(preview)}</div>
+                        <div class="email-date">${escapeHtml(date)}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // 获取临时邮件详情
@@ -295,7 +351,7 @@
             document.getElementById('emailDetailToolbar').style.display = 'flex';
 
             const container = document.getElementById('emailDetail');
-            container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span></div>';
 
             try {
                 const response = await fetch(`/api/temp-emails/${encodeURIComponent(currentAccount)}/messages/${encodeURIComponent(messageId)}`);
@@ -307,16 +363,14 @@
                     handleApiError(data, '加载邮件详情失败');
                     container.innerHTML = `
                         <div class="empty-state">
-                            <div class="empty-state-icon">⚠️</div>
-                            <div class="empty-state-text">${data.error && data.error.message ? data.error.message : '加载失败'}</div>
+                            <span class="empty-icon">⚠️</span><p>${data.error && data.error.message ? data.error.message : '加载失败'}</p>
                         </div>
                     `;
                 }
             } catch (error) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <div class="empty-state-text">网络错误，请重试</div>
+                        <span class="empty-icon">⚠️</span><p>网络错误，请重试</p>
                     </div>
                 `;
             }

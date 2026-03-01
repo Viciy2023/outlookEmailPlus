@@ -12,7 +12,9 @@ module.exports = {
   // 测试文件匹配模式
   testMatch: [
     '**/tests/layout-system/unit/**/*.test.js',
-    '**/tests/layout-system/integration/**/*.test.js'
+    '**/tests/layout-system/integration/**/*.test.js',
+    '**/tests/layout-system/performance/**/*.test.js',
+    '**/tests/layout-system/accessibility/**/*.test.js'
   ],
 
   // 覆盖率配置

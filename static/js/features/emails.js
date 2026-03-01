@@ -43,7 +43,7 @@
             currentSkip = 0;
             hasMoreEmails = true;
 
-            container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span> 获取中…</div>';
 
             try {
                 // 每次只查询20封邮件
@@ -105,8 +105,7 @@
                     }
                     container.innerHTML = `
                         <div class="empty-state">
-                            <div class="empty-state-icon">⚠️</div>
-                            <div class="empty-state-text">获取邮件失败，<a href="javascript:void(0)" id="showEmailErrorLink" style="color:#409eff;text-decoration:underline;">点击查看详情</a></div>
+                            <span class="empty-icon">⚠️</span><p>获取邮件失败，<a href="javascript:void(0)" id="showEmailErrorLink" style="color:#409eff;text-decoration:underline;">点击查看详情</a></p>
                         </div>
                     `;
                     lastFetchErrorDetails = data.details || {};
@@ -119,8 +118,7 @@
             } catch (error) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <div class="empty-state-text">网络错误，请重试</div>
+                        <span class="empty-icon">⚠️</span><p>网络错误，请重试</p>
                     </div>
                 `;
             } finally {
@@ -145,33 +143,33 @@
             if (emails.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">📭</div>
-                        <div class="empty-state-text">收件箱为空</div>
+                        <span class="empty-icon">📭</span>
+                        <p>收件箱为空</p>
                     </div>
                 `;
-                // Reset selection
                 selectedEmailIds.clear();
                 updateEmailBatchActionBar();
                 return;
             }
 
-            // 根据是否是临时邮箱选择不同的点击处理函数
             const clickHandler = isTempEmailGroup ? 'getTempEmailDetail' : 'selectEmail';
 
             container.innerHTML = emails.map((email, index) => {
                 const isChecked = selectedEmailIds.has(email.id);
+                const initial = (email.from || '?')[0].toUpperCase();
                 return `
                 <div class="email-item ${email.is_read === false ? 'unread' : ''}"
                      onclick="${clickHandler}('${email.id}', ${index})">
                     <div class="email-checkbox-wrapper" onclick="event.stopPropagation(); toggleEmailSelection('${email.id}')">
                         <input type="checkbox" class="email-checkbox" ${isChecked ? 'checked' : ''} style="pointer-events: none;">
                     </div>
-                    <div style="flex: 1; min-width: 0;">
+                    <div class="email-avatar">${initial}</div>
+                    <div class="email-meta">
                         <div class="email-from">${escapeHtml(email.from)}</div>
                         <div class="email-subject">${escapeHtml(email.subject || '无主题')}</div>
                         <div class="email-preview">${escapeHtml(email.body_preview || '')}</div>
-                        <div class="email-date">${formatDate(email.date)}</div>
                     </div>
+                    <div class="email-time">${formatDate(email.date)}</div>
                 </div>
             `}).join('');
 
@@ -250,8 +248,7 @@
                     if (currentEmailDetail && deletedIds.has(currentEmailDetail.id)) {
                         document.getElementById('emailDetail').innerHTML = `
                             <div class="empty-state">
-                                <div class="empty-state-icon">🗑️</div>
-                                <div class="empty-state-text">邮件已删除</div>
+                                <span class="empty-icon">🗑️</span><p>邮件已删除</p>
                             </div>
                         `;
                         document.getElementById('emailDetailToolbar').style.display = 'none';
@@ -273,10 +270,14 @@
 
         // 选择邮件
         async function selectEmail(messageId, index) {
-            // 更新 UI
             document.querySelectorAll('.email-item').forEach((item, i) => {
                 item.classList.toggle('active', i === index);
             });
+
+            // Show email detail section (new layout)
+            if (typeof showEmailDetailSection === 'function') {
+                showEmailDetailSection();
+            }
 
             // 这里不重置 currentEmailDetail，等到 fetch 成功后再设置
 
@@ -289,7 +290,7 @@
 
             // 加载邮件详情
             const container = document.getElementById('emailDetail');
-            container.innerHTML = '<div class="loading"><div class="loading-spinner"></div></div>';
+            container.innerHTML = '<div class="loading-overlay"><span class="spinner"></span></div>';
 
             try {
                 const response = await fetch(`/api/email/${encodeURIComponent(currentAccount)}/${encodeURIComponent(messageId)}?method=${currentMethod}&folder=${currentFolder}`);
@@ -302,16 +303,14 @@
                     handleApiError(data, '加载邮件详情失败');
                     container.innerHTML = `
                         <div class="empty-state">
-                            <div class="empty-state-icon">⚠️</div>
-                            <div class="empty-state-text">${data.error && data.error.message ? data.error.message : '加载失败'}</div>
+                            <span class="empty-icon">⚠️</span><p>${data.error && data.error.message ? data.error.message : '加载失败'}</p>
                         </div>
                     `;
                 }
             } catch (error) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">⚠️</div>
-                        <div class="empty-state-text">网络错误，请重试</div>
+                        <span class="empty-icon">⚠️</span><p>网络错误，请重试</p>
                     </div>
                 `;
             }
@@ -388,15 +387,10 @@
                                     color: #333;
                                     margin: 0;
                                     padding: 0;
-                                    background-color: #ffffff;
+                                    background-color: transparent;
                                 }
-                                img {
-                                    max-width: 100%;
-                                    height: auto;
-                                }
-                                a {
-                                    color: #0078d4;
-                                }
+                                img { max-width: 100%; height: auto; }
+                                a { color: var(--clr-primary, #B85C38); }
                             </style>
                         </head>
                         <body>${sanitizedBody}</body>
@@ -462,40 +456,9 @@
             }
         }
 
-        // 同步“邮件列表显示/隐藏”与可调整布局系统（Grid 列宽）
+        // 同步邮件列表可见性（新布局简化版）
         function syncEmailListVisibility(visible) {
-            const panel = document.getElementById('emailListPanel');
-            if (!panel) return;
-
-            try {
-                const lm = window.layoutManager;
-                if (lm && typeof lm.applyCollapsedLayoutVars === 'function' && typeof lm.applyExpandedLayoutVars === 'function') {
-                    if (visible) {
-                        panel.classList.remove('hidden');
-
-                        // 若面板处于折叠状态，先自动展开（不抢焦点/不保存），保持“移动端临时显示”语义
-                        if (panel.classList.contains('collapsed') && typeof lm.expandPanel === 'function') {
-                            lm.expandPanel('emails', true);
-                        }
-
-                        lm.applyExpandedLayoutVars('emails');
-                    } else {
-                        panel.classList.add('hidden');
-                        lm.applyCollapsedLayoutVars('emails');
-                    }
-                    return;
-                }
-            } catch (e) {
-                // 降级：忽略布局系统异常，不影响主业务
-                console.warn('syncEmailListVisibility failed:', e);
-            }
-
-            // 无布局系统时保持旧逻辑
-            if (visible) {
-                panel.classList.remove('hidden');
-            } else {
-                panel.classList.add('hidden');
-            }
+            // New layout doesn't use the old panel collapse system - no-op
         }
 
         // 切换邮件列表显示
@@ -511,6 +474,88 @@
                 syncEmailListVisibility(false);
                 toggleText.textContent = '显示列表';
             }
+        }
+
+        // ==================== 验证码提取（从邮件详情） ====================
+
+        function extractVerificationFromDetail(buttonElement) {
+            const originalContent = buttonElement.innerHTML;
+            buttonElement.disabled = true;
+            buttonElement.innerHTML = '⏳';
+            buttonElement.style.opacity = '0.6';
+
+            try {
+                // 获取邮件正文文本
+                let bodyText = '';
+                const emailDetail = document.getElementById('emailDetail');
+                const iframe = emailDetail ? emailDetail.querySelector('#emailBodyFrame') : null;
+                const textBody = emailDetail ? emailDetail.querySelector('.email-body-text') : null;
+
+                if (iframe && iframe.contentDocument && iframe.contentDocument.body) {
+                    bodyText = iframe.contentDocument.body.innerText || iframe.contentDocument.body.textContent || '';
+                } else if (textBody) {
+                    bodyText = textBody.textContent || '';
+                }
+
+                if (!bodyText.trim()) {
+                    showToast('邮件正文为空，无法提取', 'error');
+                    buttonElement.innerHTML = '❌';
+                    setTimeout(() => { buttonElement.disabled = false; buttonElement.innerHTML = originalContent; buttonElement.style.opacity = '1'; }, 1500);
+                    return;
+                }
+
+                // 正则提取验证码（4-8位数字/字母组合）
+                const codePatterns = [
+                    /(?:验证码|verification code|code|码|PIN|OTP|密码)[：:\s]*([A-Za-z0-9]{4,8})/i,
+                    /\b(\d{4,8})\b/,
+                    /(?:code|码)[：:\s]*([A-Za-z0-9-]{4,12})/i,
+                ];
+
+                // 正则提取链接
+                const urlPattern = /https?:\/\/[^\s<>"')\]]+/gi;
+                const urls = bodyText.match(urlPattern) || [];
+                // 过滤掉常见无关链接
+                const filteredUrls = urls.filter(u => !u.includes('unsubscribe') && !u.includes('privacy') && !u.includes('terms'));
+
+                let code = '';
+                for (const pattern of codePatterns) {
+                    const match = bodyText.match(pattern);
+                    if (match && match[1]) { code = match[1]; break; }
+                }
+
+                let result = '';
+                if (code) result += `验证码: ${code}`;
+                if (filteredUrls.length > 0) {
+                    if (result) result += '\n';
+                    result += `链接: ${filteredUrls[0]}`;
+                }
+
+                if (result) {
+                    // 复制到剪贴板
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(code || filteredUrls[0] || result);
+                    }
+                    showToast(`已复制: ${code || filteredUrls[0]}`, 'success');
+                    buttonElement.innerHTML = '✅';
+                    buttonElement.style.opacity = '1';
+                } else {
+                    showToast('未找到验证码或链接', 'error');
+                    buttonElement.innerHTML = '❌';
+                    buttonElement.style.opacity = '1';
+                }
+            } catch (error) {
+                console.error('提取验证码失败:', error);
+                showToast('提取失败，请手动查看', 'error');
+                buttonElement.innerHTML = '❌';
+                buttonElement.style.opacity = '1';
+            }
+
+            setTimeout(() => {
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = originalContent;
+                buttonElement.style.opacity = '1';
+                buttonElement.style.cursor = 'pointer';
+            }, 1500);
         }
 
         // 全屏查看邮件
@@ -658,7 +703,11 @@
         function showEmailList() {
             syncEmailListVisibility(true);
             isListVisible = true;
-            document.getElementById('toggleListText').textContent = '隐藏列表';
+            var t = document.getElementById('toggleListText');
+            if (t) t.textContent = '隐藏列表';
+            if (typeof hideEmailDetailSection === 'function') {
+                hideEmailDetailSection();
+            }
         }
 
         // 刷新邮件
@@ -705,7 +754,9 @@
         // 退出登录
         function logout() {
             if (confirm('确定要退出登录吗？')) {
-                window.location.href = '/logout';
+                fetch('/logout', { method: 'POST' })
+                    .then(() => { window.location.href = '/login'; })
+                    .catch(() => { window.location.href = '/logout'; });
             }
         }
 
