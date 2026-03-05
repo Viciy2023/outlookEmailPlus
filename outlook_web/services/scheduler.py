@@ -61,13 +61,13 @@ def scheduler_heartbeat_task():
 
 
 def _get_telegram_interval(app) -> int:
-    """读取 telegram_poll_interval 设置，默认 600 秒，最小 60 秒。"""
+    """读取 telegram_poll_interval 设置，默认 60 秒，最小 10 秒。"""
     try:
         with app.app_context():
-            val = settings_repo.get_setting("telegram_poll_interval", "600")
-        return max(10, int(val or "600"))
+            val = settings_repo.get_setting("telegram_poll_interval", "60")
+        return max(10, int(val or "60"))
     except Exception:
-        return 600
+        return 60
 
 
 def _configure_telegram_push_job(scheduler, app) -> None:
