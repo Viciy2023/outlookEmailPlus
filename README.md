@@ -244,5 +244,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 - GitHub Issues: [https://github.com/ZeroPointSix/outlookEmailPlus/issues](https://github.com/ZeroPointSix/outlookEmailPlus/issues)
 
 ---
-
+致谢:
+https://github.com/assast/outlookEmail
+https://github.com/gblaowang-i/MailAggregator_Pro#
 **⭐ 如果这个项目对你有帮助，请给个 Star 支持一下！**
