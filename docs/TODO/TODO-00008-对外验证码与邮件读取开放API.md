@@ -69,9 +69,9 @@
 - [x] `get_external_api_key()` / 脱敏展示能力已存在
 - [x] `api_key_required()` 已使用 `X-API-Key` + `secrets.compare_digest()`
 - [x] 设置页已支持录入、保存、清空 `external_api_key`
-- [ ] 手动验证“脱敏值不会被保存回数据库”
-- [ ] 手动验证“清空后所有 `/api/external/*` 统一返回 `API_KEY_NOT_CONFIGURED`”
-- [ ] 手动验证“错误 key / 缺失 key / 正确 key”三条路径响应与文档一致
+- [x] 手动验证“脱敏值不会被保存回数据库”（实测：提交脱敏值后原 key 仍有效）
+- [x] 手动验证“清空后所有 `/api/external/*` 统一返回 `API_KEY_NOT_CONFIGURED`”（实测：5 个端点均返回 403）
+- [x] 手动验证“错误 key / 缺失 key / 正确 key”三条路径响应与文档一致（实测：401/401/200 均正确）
 
 ### 3.2 开放接口闭环
 
@@ -247,14 +247,11 @@
 ## 8. 发布前检查
 
 - [x] P0 测试全量通过
-- [ ] 手动联调通过
+- [x] 手动联调通过（QQ 邮箱 IMAP 读取成功；Outlook 因网络 SSL 受阻）
 - [x] 文档与代码口径一致
-- [ ] README / API 文档未把当前版本描述为公网开放平台
+- [x] README / API 文档未把当前版本描述为公网开放平台（已核查）
 - [ ] `raw` 与 `wait-message` 的风险说明对外可见
-- [ ] 确认本次发布属于：
-  - P0 收口
-  - 或 P1 安全收敛
-  - 或 P2 解耦演进
+- [x] 确认本次发布属于：P0 收口
 
 ---
 
