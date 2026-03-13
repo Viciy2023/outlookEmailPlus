@@ -17,10 +17,11 @@ import time
 from functools import wraps
 from typing import Any, Callable, Optional
 
-from flask import jsonify, request
+from flask import jsonify
 
 from outlook_web.db import get_db
 from outlook_web.repositories import settings as settings_repo
+from outlook_web.security.auth import get_client_ip as get_trusted_client_ip
 from outlook_web.services import external_api as external_api_service
 
 
@@ -28,11 +29,16 @@ from outlook_web.services import external_api as external_api_service
 
 
 def _get_client_ip() -> str:
-    """获取客户端真实 IP（优先 X-Forwarded-For）。"""
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.remote_addr or "127.0.0.1"
+    """获取客户端真实 IP。
+
+    安全策略：仅当请求来自受信任代理（TRUSTED_PROXIES）时才信任 X-Forwarded-For，
+    否则使用 remote_addr，避免客户端伪造 XFF 绕过白名单/限流。
+
+    该逻辑与登录/其它鉴权场景保持一致（见 outlook_web.security.auth.get_client_ip）。
+    """
+
+    # Keep return value stable for downstream code (never None).
+    return get_trusted_client_ip() or "unknown"
 
 
 def _ip_in_whitelist(ip: str, whitelist: list) -> bool:

@@ -1782,6 +1782,50 @@ class GuardIpWhitelistTests(ExternalApiGuardBaseTest):
         resp = client.get("/api/external/health", headers=self._auth_headers())
         self.assertEqual(resp.status_code, 200)
 
+    def test_xff_ignored_when_proxy_not_trusted(self):
+        """公网模式下：不信任代理时忽略 XFF，防止伪造绕过白名单"""
+        import os
+
+        old = os.environ.pop("TRUSTED_PROXIES", None)
+        try:
+            self._set_external_api_key("abc123")
+            self._set_public_mode(True)
+            # 只允许伪造的 XFF，但不允许真实 remote_addr(127.0.0.1)
+            self._set_ip_whitelist(["10.0.0.1"])
+            client = self.app.test_client()
+            resp = client.get(
+                "/api/external/health",
+                headers={**self._auth_headers(), "X-Forwarded-For": "10.0.0.1"},
+            )
+            self.assertEqual(resp.status_code, 403)
+            data = resp.get_json()
+            self.assertEqual(data["code"], "IP_NOT_ALLOWED")
+        finally:
+            if old is not None:
+                os.environ["TRUSTED_PROXIES"] = old
+
+    def test_xff_honored_when_proxy_trusted(self):
+        """公网模式下：来自受信任代理时可使用 XFF 进行白名单判断"""
+        import os
+
+        old = os.environ.get("TRUSTED_PROXIES")
+        os.environ["TRUSTED_PROXIES"] = "127.0.0.1"
+        try:
+            self._set_external_api_key("abc123")
+            self._set_public_mode(True)
+            self._set_ip_whitelist(["10.0.0.1"])
+            client = self.app.test_client()
+            resp = client.get(
+                "/api/external/health",
+                headers={**self._auth_headers(), "X-Forwarded-For": "10.0.0.1"},
+            )
+            self.assertEqual(resp.status_code, 200)
+        finally:
+            if old is None:
+                os.environ.pop("TRUSTED_PROXIES", None)
+            else:
+                os.environ["TRUSTED_PROXIES"] = old
+
 
 class GuardFeatureDisableTests(ExternalApiGuardBaseTest):
     """TC-GUARD-08~11: 高风险接口禁用。"""
