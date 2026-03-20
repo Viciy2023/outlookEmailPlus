@@ -2,6 +2,8 @@
 
 一个用于统一管理 Outlook / IMAP 邮箱账号、读取邮件、提取验证码，并支持邮箱池调度的 Web 项目(or 注册机)。
 
+[English](./README.en.md)
+
 
 
 ## 项目优势
@@ -64,6 +66,56 @@ python start.py
 - `OAUTH_CLIENT_ID`：Outlook OAuth 应用 ID
 - `OAUTH_REDIRECT_URI`：Outlook OAuth 回调地址
 
+### 邮件通知配置说明
+
+如果你准备启用“邮件通知”能力，需要额外配置业务通知 SMTP。当前项目里的邮件通知与 GPTMail、Telegram 是独立链路，不能互相替代。
+
+最少需要配置：
+
+- `EMAIL_NOTIFICATION_SMTP_HOST`：SMTP 服务器地址
+- `EMAIL_NOTIFICATION_FROM`：发件人邮箱
+
+常见可选配置：
+
+- `EMAIL_NOTIFICATION_SMTP_PORT`：SMTP 端口，默认 `25`
+- `EMAIL_NOTIFICATION_SMTP_USERNAME`：SMTP 登录用户名
+- `EMAIL_NOTIFICATION_SMTP_PASSWORD`：SMTP 登录密码或授权码
+- `EMAIL_NOTIFICATION_SMTP_USE_TLS`：是否启用 STARTTLS
+- `EMAIL_NOTIFICATION_SMTP_USE_SSL`：是否启用 SSL
+- `EMAIL_NOTIFICATION_SMTP_TIMEOUT`：SMTP 超时秒数，默认 `15`
+
+示例：
+
+```env
+EMAIL_NOTIFICATION_SMTP_HOST=smtp.qq.com
+EMAIL_NOTIFICATION_SMTP_PORT=465
+EMAIL_NOTIFICATION_FROM=your_account@qq.com
+EMAIL_NOTIFICATION_SMTP_USERNAME=your_account@qq.com
+EMAIL_NOTIFICATION_SMTP_PASSWORD=your_smtp_auth_code
+EMAIL_NOTIFICATION_SMTP_USE_SSL=true
+EMAIL_NOTIFICATION_SMTP_USE_TLS=false
+EMAIL_NOTIFICATION_SMTP_TIMEOUT=15
+```
+
+常见报错说明：
+
+- `EMAIL_NOTIFICATION_SERVICE_UNAVAILABLE`
+  含义：当前系统没有可用的邮件通知发信配置。最常见原因是 `EMAIL_NOTIFICATION_SMTP_HOST` 或 `EMAIL_NOTIFICATION_FROM` 未配置。
+- `EMAIL_NOTIFICATION_SMTP_PORT_INVALID`
+  含义：`EMAIL_NOTIFICATION_SMTP_PORT` 不是合法正整数。
+- `EMAIL_NOTIFICATION_SMTP_TIMEOUT_INVALID`
+  含义：`EMAIL_NOTIFICATION_SMTP_TIMEOUT` 不是合法正整数。
+- `EMAIL_NOTIFICATION_RECIPIENT_REQUIRED`
+  含义：你在保存设置时启用了邮件通知，但没有填写接收通知邮箱。
+- `EMAIL_NOTIFICATION_RECIPIENT_NOT_CONFIGURED`
+  含义：你点击“发送测试邮件”时，系统读取不到已保存的接收通知邮箱。
+
+注意：
+
+- 设置页里的“发送测试邮件”遵循“先保存，再测试”规则。
+- 测试接口不会临时读取输入框内容，只会读取已经保存到 settings 的 `email_notification_recipient`。
+- 因此正确顺序是：先填写接收通知邮箱并保存，再点击“发送测试邮件”。
+
 ## 界面预览
 
 ![仪表盘](img/仪表盘.png)
@@ -73,7 +125,9 @@ python start.py
 
 ## 项目文档
 
-- [注册与邮箱池接口文档](./注册与邮箱池接口文档.md)
+- [文档总索引](./docs/INDEX.md)
+- [注册与邮箱池接口文档](./docs/API/注册与邮箱池接口文档.md)
+- [Registration Worker and Mail Pool API](./docs/API/registration-mail-pool-api.en.md)
 
 如果你需要接入注册机之类的批量工作，请直接看上面的文档
 
