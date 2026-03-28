@@ -1693,13 +1693,40 @@ ${details}
                     // 密码不回显
                     document.getElementById('settingsPassword').value = '';
 
-                    // GPTMail API Key（仅脱敏展示，避免回填明文）
-                    const gptmailApiKeyEl = document.getElementById('settingsApiKey');
-                    if (gptmailApiKeyEl) {
-                        const maskedValue = data.settings.gptmail_api_key_masked || '';
-                        gptmailApiKeyEl.value = maskedValue;
-                        gptmailApiKeyEl.dataset.maskedValue = maskedValue;
-                        gptmailApiKeyEl.dataset.isSet = data.settings.gptmail_api_key_set ? 'true' : 'false';
+                    const tempMailProviderEl = document.getElementById('settingsTempMailProvider');
+                    if (tempMailProviderEl) {
+                        tempMailProviderEl.value = data.settings.temp_mail_provider || 'custom_domain_temp_mail';
+                    }
+
+                    const tempMailApiBaseUrlEl = document.getElementById('settingsTempMailApiBaseUrl');
+                    if (tempMailApiBaseUrlEl) {
+                        tempMailApiBaseUrlEl.value = data.settings.temp_mail_api_base_url || '';
+                    }
+
+                    // 临时邮箱 API Key（仅脱敏展示，避免回填明文）
+                    const tempMailApiKeyEl = document.getElementById('settingsApiKey');
+                    if (tempMailApiKeyEl) {
+                        const maskedValue = data.settings.temp_mail_api_key_masked || '';
+                        tempMailApiKeyEl.value = maskedValue;
+                        tempMailApiKeyEl.dataset.maskedValue = maskedValue;
+                        tempMailApiKeyEl.dataset.isSet = data.settings.temp_mail_api_key_set ? 'true' : 'false';
+                    }
+
+                    const tempMailDomainsEl = document.getElementById('settingsTempMailDomains');
+                    if (tempMailDomainsEl) {
+                        const domains = Array.isArray(data.settings.temp_mail_domains) ? data.settings.temp_mail_domains : [];
+                        tempMailDomainsEl.value = domains.length ? JSON.stringify(domains, null, 2) : '';
+                    }
+
+                    const tempMailDefaultDomainEl = document.getElementById('settingsTempMailDefaultDomain');
+                    if (tempMailDefaultDomainEl) {
+                        tempMailDefaultDomainEl.value = data.settings.temp_mail_default_domain || '';
+                    }
+
+                    const tempMailPrefixRulesEl = document.getElementById('settingsTempMailPrefixRules');
+                    if (tempMailPrefixRulesEl) {
+                        const prefixRules = data.settings.temp_mail_prefix_rules || {};
+                        tempMailPrefixRulesEl.value = Object.keys(prefixRules).length ? JSON.stringify(prefixRules, null, 2) : '';
                     }
 
                     // 对外开放 API Key（仅脱敏展示，避免回填明文）
@@ -1854,10 +1881,16 @@ ${details}
         async function saveSettings() {
             const password = document.getElementById('settingsPassword').value;
 
-            const gptmailApiKeyEl = document.getElementById('settingsApiKey');
-            const gptmailApiKey = gptmailApiKeyEl ? gptmailApiKeyEl.value.trim() : '';
-            const gptmailApiKeyMasked = gptmailApiKeyEl ? (gptmailApiKeyEl.dataset.maskedValue || '') : '';
-            const gptmailApiKeyIsSet = gptmailApiKeyEl ? gptmailApiKeyEl.dataset.isSet === 'true' : false;
+            const tempMailProviderEl = document.getElementById('settingsTempMailProvider');
+            const tempMailApiBaseUrlEl = document.getElementById('settingsTempMailApiBaseUrl');
+            const tempMailApiKeyEl = document.getElementById('settingsApiKey');
+            const tempMailDomainsEl = document.getElementById('settingsTempMailDomains');
+            const tempMailDefaultDomainEl = document.getElementById('settingsTempMailDefaultDomain');
+            const tempMailPrefixRulesEl = document.getElementById('settingsTempMailPrefixRules');
+
+            const tempMailApiKey = tempMailApiKeyEl ? tempMailApiKeyEl.value.trim() : '';
+            const tempMailApiKeyMasked = tempMailApiKeyEl ? (tempMailApiKeyEl.dataset.maskedValue || '') : '';
+            const tempMailApiKeyIsSet = tempMailApiKeyEl ? tempMailApiKeyEl.dataset.isSet === 'true' : false;
 
             const externalApiKeyEl = document.getElementById('settingsExternalApiKey');
             const externalApiKey = externalApiKeyEl ? externalApiKeyEl.value.trim() : '';
@@ -1889,9 +1922,45 @@ ${details}
                 settings.login_password = password;
             }
 
-            // GPTMail API Key：仅当用户真实输入时才覆盖（避免把脱敏占位符写回 DB）
-            if (!(gptmailApiKeyIsSet && gptmailApiKey && gptmailApiKey === gptmailApiKeyMasked)) {
-                settings.gptmail_api_key = gptmailApiKey;
+            settings.temp_mail_provider = tempMailProviderEl ? tempMailProviderEl.value.trim() || 'custom_domain_temp_mail' : 'custom_domain_temp_mail';
+            settings.temp_mail_api_base_url = tempMailApiBaseUrlEl ? tempMailApiBaseUrlEl.value.trim() : '';
+            settings.temp_mail_default_domain = tempMailDefaultDomainEl ? tempMailDefaultDomainEl.value.trim() : '';
+
+            if (tempMailDomainsEl) {
+                const rawDomains = tempMailDomainsEl.value.trim();
+                if (rawDomains) {
+                    try {
+                        settings.temp_mail_domains = JSON.parse(rawDomains);
+                    } catch (error) {
+                        showToast(translateAppTextLocal('临时邮箱域名配置必须是合法 JSON'), 'error');
+                        return;
+                    }
+                } else {
+                    settings.temp_mail_domains = [];
+                }
+            }
+
+            if (tempMailPrefixRulesEl) {
+                const rawPrefixRules = tempMailPrefixRulesEl.value.trim();
+                if (rawPrefixRules) {
+                    try {
+                        settings.temp_mail_prefix_rules = JSON.parse(rawPrefixRules);
+                    } catch (error) {
+                        showToast(translateAppTextLocal('临时邮箱前缀规则必须是合法 JSON'), 'error');
+                        return;
+                    }
+                } else {
+                    settings.temp_mail_prefix_rules = {
+                        min_length: 1,
+                        max_length: 32,
+                        pattern: '^[a-z0-9][a-z0-9._-]*$'
+                    };
+                }
+            }
+
+            // 临时邮箱 API Key：仅当用户真实输入时才覆盖（避免把脱敏占位符写回 DB）
+            if (!(tempMailApiKeyIsSet && tempMailApiKey && tempMailApiKey === tempMailApiKeyMasked)) {
+                settings.temp_mail_api_key = tempMailApiKey;
             }
 
             // 对外开放 API Key：允许清空（空字符串）

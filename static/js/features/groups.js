@@ -752,10 +752,35 @@
         // 复制验证信息到剪贴板
         const verificationCopyInFlight = new Set();
 
-        async function copyVerificationInfo(email, buttonElement) {
+        function buildVerificationExtractEndpoint(email, options = {}) {
+            const normalizedSource = String(options?.source || '').trim().toLowerCase();
+            if (normalizedSource === 'temp' || normalizedSource === 'temp-mail' || normalizedSource === 'temp_mail') {
+                return `/api/temp-emails/${encodeURIComponent(email)}/extract-verification`;
+            }
+            return `/api/emails/${encodeURIComponent(email)}/extract-verification`;
+        }
+
+        async function tryFallbackVerificationExtraction(options = {}) {
+            if (typeof options.fallbackExtractor !== 'function') {
+                return null;
+            }
+
+            try {
+                const fallbackResult = await options.fallbackExtractor();
+                if (!fallbackResult || !fallbackResult.formatted) {
+                    return null;
+                }
+                return fallbackResult;
+            } catch (fallbackError) {
+                console.error('本地兜底提取失败:', fallbackError);
+                return null;
+            }
+        }
+
+        async function copyVerificationInfo(email, buttonElement, options = {}) {
             const requestKey = String(email || '').trim().toLowerCase();
             if (!requestKey || verificationCopyInFlight.has(requestKey)) {
-                return;
+                return false;
             }
             verificationCopyInFlight.add(requestKey);
 
@@ -767,7 +792,7 @@
             buttonElement.style.cursor = 'wait';
 
             try {
-                const response = await fetch(`/api/emails/${encodeURIComponent(email)}/extract-verification`);
+                const response = await fetch(buildVerificationExtractEndpoint(email, options));
                 const data = await response.json();
 
                 if (data.success && data.data && data.data.formatted) {
@@ -782,7 +807,25 @@
                     // 成功状态
                     buttonElement.innerHTML = '✅';
                     buttonElement.style.opacity = '1';
+                    return true;
                 } else {
+                    const fallbackResult = await tryFallbackVerificationExtraction(options);
+                    if (fallbackResult) {
+                        await copyToClipboard(
+                            fallbackResult.copyText || fallbackResult.verification_code || fallbackResult.verification_link || fallbackResult.formatted
+                        );
+                        const copiedValue = fallbackResult.displayValue || fallbackResult.verification_code || fallbackResult.verification_link || fallbackResult.formatted;
+                        showToast(
+                            getUiLanguage() === 'en'
+                                ? `Copied from current email: ${copiedValue}`
+                                : `已从当前邮件兜底复制: ${copiedValue}`,
+                            'warning'
+                        );
+                        buttonElement.innerHTML = '✅';
+                        buttonElement.style.opacity = '1';
+                        return true;
+                    }
+
                     const errorMsg = window.resolveApiErrorMessage
                         ? window.resolveApiErrorMessage(data.error || data, '未找到验证码或链接', 'No verification code or link was found')
                         : (data.error?.message || data.error || '未找到验证码或链接');
@@ -790,13 +833,31 @@
                     // 失败状态
                     buttonElement.innerHTML = '❌';
                     buttonElement.style.opacity = '1';
+                    return false;
                 }
             } catch (error) {
                 console.error('提取验证码失败:', error);
+                const fallbackResult = await tryFallbackVerificationExtraction(options);
+                if (fallbackResult) {
+                    await copyToClipboard(
+                        fallbackResult.copyText || fallbackResult.verification_code || fallbackResult.verification_link || fallbackResult.formatted
+                    );
+                    const copiedValue = fallbackResult.displayValue || fallbackResult.verification_code || fallbackResult.verification_link || fallbackResult.formatted;
+                    showToast(
+                        getUiLanguage() === 'en'
+                            ? `Copied from current email: ${copiedValue}`
+                            : `已从当前邮件兜底复制: ${copiedValue}`,
+                        'warning'
+                    );
+                    buttonElement.innerHTML = '✅';
+                    buttonElement.style.opacity = '1';
+                    return true;
+                }
                 showToast(translateAppTextLocal('网络错误，请重试'), 'error');
                 // 失败状态
                 buttonElement.innerHTML = '❌';
                 buttonElement.style.opacity = '1';
+                return false;
             } finally {
                 verificationCopyInFlight.delete(requestKey);
                 // 延迟恢复按钮状态
