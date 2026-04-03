@@ -9,12 +9,12 @@ from outlook_web.audit import log_audit
 from outlook_web.db import get_db
 from outlook_web.errors import build_error_response
 from outlook_web.security.auth import login_required
-from outlook_web.services.temp_mail_service import TempMailError, get_temp_mail_service
 from outlook_web.services.temp_email_content import (
     build_inline_resource_map,
     load_temp_email_payload,
     rewrite_html_with_inline_resources,
 )
+from outlook_web.services.temp_mail_service import TempMailError, get_temp_mail_service
 
 logger = logging.getLogger(__name__)
 temp_mail_service = get_temp_mail_service()
@@ -82,30 +82,21 @@ def api_generate_temp_email() -> Any:
     domain = data.get("domain")
     provider_name = str(data.get("provider_name") or "").strip() or None
     try:
-        mailbox = temp_mail_service.generate_user_mailbox(
-            prefix=prefix, domain=domain, provider_name=provider_name
-        )
+        mailbox = temp_mail_service.generate_user_mailbox(prefix=prefix, domain=domain, provider_name=provider_name)
         email_addr = mailbox["email"]
         log_audit("create", "temp_email", email_addr, "生成临时邮箱")
         logger.info(f"临时邮箱生成成功: {email_addr}")
         try:
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
             from outlook_web.repositories import settings as settings_repo
             from outlook_web.services import notification_dispatch
 
-            if (
-                settings_repo.get_setting("email_notification_enabled", "false").lower()
-                == "true"
-            ):
+            if settings_repo.get_setting("email_notification_enabled", "false").lower() == "true":
                 notification_state_cursor = notification_dispatch.utc_now_iso()
                 notification_state_repo.upsert_cursor(
                     notification_dispatch.CHANNEL_EMAIL,
                     notification_dispatch.SOURCE_TEMP_EMAIL,
-                    notification_dispatch.build_source_key(
-                        notification_dispatch.SOURCE_TEMP_EMAIL, email_addr
-                    ),
+                    notification_dispatch.build_source_key(notification_dispatch.SOURCE_TEMP_EMAIL, email_addr),
                     notification_state_cursor,
                 )
         except Exception:
@@ -120,9 +111,7 @@ def api_generate_temp_email() -> Any:
             }
         )
     except TempMailError as exc:
-        logger.error(
-            f"临时邮箱生成失败: {exc.message}, prefix={prefix}, domain={domain}"
-        )
+        logger.error(f"临时邮箱生成失败: {exc.message}, prefix={prefix}, domain={domain}")
         return build_error_response(
             exc.code,
             exc.message,
@@ -195,9 +184,7 @@ def api_get_temp_email_messages(email_addr: str) -> Any:
 def api_get_temp_email_message_detail(email_addr: str, message_id: str) -> Any:
     """获取临时邮件详情"""
     try:
-        refresh_if_missing = _parse_bool_flag(
-            request.args.get("refresh_if_missing"), default=True
-        )
+        refresh_if_missing = _parse_bool_flag(request.args.get("refresh_if_missing"), default=True)
         msg = temp_mail_service.get_cached_message_row(email_addr, message_id)
         if refresh_if_missing and _should_refresh_temp_email_detail(msg):
             detail = temp_mail_service.refresh_message_detail(email_addr, message_id)
@@ -233,14 +220,8 @@ def api_get_temp_email_message_detail(email_addr: str, message_id: str) -> Any:
             }
         )
     except TempMailError as exc:
-        message_en = (
-            "Message not found"
-            if exc.status == 404
-            else "Failed to fetch message detail"
-        )
-        return build_error_response(
-            exc.code, exc.message, status=exc.status, message_en=message_en
-        )
+        message_en = "Message not found" if exc.status == 404 else "Failed to fetch message detail"
+        return build_error_response(exc.code, exc.message, status=exc.status, message_en=message_en)
 
 
 @login_required
@@ -249,14 +230,8 @@ def api_extract_temp_email_verification(email_addr: str) -> Any:
         result = temp_mail_service.extract_verification(email_addr)
         return jsonify({"success": True, "data": result, "message": "提取成功"})
     except TempMailError as exc:
-        message_en = (
-            "Verification info not found"
-            if exc.status == 404
-            else "Failed to extract verification info"
-        )
-        return build_error_response(
-            exc.code, exc.message, status=exc.status, message_en=message_en
-        )
+        message_en = "Verification info not found" if exc.status == 404 else "Failed to extract verification info"
+        return build_error_response(exc.code, exc.message, status=exc.status, message_en=message_en)
 
 
 @login_required
@@ -270,9 +245,7 @@ def api_delete_temp_email_message(email_addr: str, message_id: str) -> Any:
             message_id,
             f"删除临时邮件（email={email_addr}）",
         )
-        return jsonify(
-            {"success": True, "message": "邮件已删除", "message_en": "Message deleted"}
-        )
+        return jsonify({"success": True, "message": "邮件已删除", "message_en": "Message deleted"})
     except TempMailError as exc:
         return build_error_response(
             exc.code,
@@ -299,9 +272,7 @@ def api_clear_temp_email_messages(email_addr: str) -> Any:
             email_addr,
             f"清空临时邮箱邮件（count={deleted_count}）",
         )
-        return jsonify(
-            {"success": True, "message": "邮件已清空", "message_en": "Messages cleared"}
-        )
+        return jsonify({"success": True, "message": "邮件已清空", "message_en": "Messages cleared"})
     except TempMailError as exc:
         return build_error_response(
             exc.code,
@@ -323,10 +294,7 @@ def api_refresh_temp_email_messages(email_addr: str) -> Any:
     """刷新临时邮箱的邮件"""
     try:
         mailbox = temp_mail_service.get_mailbox(email_addr, view="descriptor")
-        existing_ids = {
-            item.get("id")
-            for item in temp_mail_service.list_messages(mailbox, sync_remote=False)
-        }
+        existing_ids = {item.get("id") for item in temp_mail_service.list_messages(mailbox, sync_remote=False)}
         messages = temp_mail_service.list_messages(mailbox, sync_remote=True)
         formatted = [
             {

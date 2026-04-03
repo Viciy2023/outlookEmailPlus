@@ -431,9 +431,7 @@ def _build_code_regex(*, code_regex: str | None, code_length: str | None) -> re.
     return re.compile(r"\b\d{4,8}\b")
 
 
-def _smart_extract_code_by_keywords(
-    email_content: str, code_re: re.Pattern
-) -> Optional[str]:
+def _smart_extract_code_by_keywords(email_content: str, code_re: re.Pattern) -> Optional[str]:
     if not email_content:
         return None
 
@@ -489,9 +487,7 @@ def _fallback_extract_code(email_content: str, code_re: re.Pattern) -> Optional[
     return candidates[0] if candidates else None
 
 
-def _pick_preferred_link(
-    links: List[str], prefer_link_keywords: List[str]
-) -> Optional[str]:
+def _pick_preferred_link(links: List[str], prefer_link_keywords: List[str]) -> Optional[str]:
     if not links:
         return None
 
@@ -534,9 +530,7 @@ def extract_verification_info_with_options(
     """
     subject = str(email.get("subject") or "").strip()
     content = _extract_content_text_without_subject(email)
-    html_content = str(
-        email.get("body_html") or email.get("html_content") or ""
-    ).strip()
+    html_content = str(email.get("body_html") or email.get("html_content") or "").strip()
 
     source = str(code_source or "all").strip().lower()
     if source == "subject":
@@ -586,9 +580,7 @@ def extract_verification_info_with_options(
                     break
 
     # 总 confidence 向后兼容：取 code / link 中较高者
-    confidence = (
-        "high" if code_confidence == "high" or link_confidence == "high" else "low"
-    )
+    confidence = "high" if code_confidence == "high" or link_confidence == "high" else "low"
 
     parts: List[str] = []
     if verification_code:
@@ -634,16 +626,9 @@ def apply_confidence_gate(extracted: Dict[str, Any]) -> Dict[str, Any]:
     if result.get("link_confidence") != "high":
         result["verification_link"] = None
 
-    parts = [
-        v
-        for v in (result.get("verification_code"), result.get("verification_link"))
-        if v
-    ]
+    parts = [v for v in (result.get("verification_code"), result.get("verification_link")) if v]
     result["formatted"] = " ".join(parts) if parts else None
     result["confidence"] = (
-        "high"
-        if result.get("code_confidence") == "high"
-        or result.get("link_confidence") == "high"
-        else "low"
+        "high" if result.get("code_confidence") == "high" or result.get("link_confidence") == "high" else "low"
     )
     return result

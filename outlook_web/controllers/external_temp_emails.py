@@ -104,7 +104,9 @@ def api_external_finish_temp_email(task_token: str):
             )
         )
     except TempMailError as exc:
-        _audit(endpoint, "error", details={"code": exc.code, "task_token": task_token}, email_addr=str(mailbox.get("email") or ""))
+        _audit(
+            endpoint, "error", details={"code": exc.code, "task_token": task_token}, email_addr=str(mailbox.get("email") or "")
+        )
         return jsonify(external_api_service.fail(exc.code, exc.message, data=exc.data)), exc.status
     except Exception as exc:
         _audit(

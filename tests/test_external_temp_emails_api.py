@@ -246,6 +246,7 @@ class ExternalTempEmailsApiTests(unittest.TestCase):
             if call_count["value"] == 1:
                 with self.app.app_context():
                     from outlook_web.repositories import temp_emails as temp_emails_repo
+
                     temp_emails_repo.finish_task_temp_email("tmptask_wait")
                 from outlook_web.services import external_api as external_api_service
 

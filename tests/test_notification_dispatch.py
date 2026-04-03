@@ -97,9 +97,7 @@ class NotificationDispatchTests(unittest.TestCase):
         client = self.app.test_client()
         self._login(client)
         with self.app.app_context():
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
 
         with (
             patch.dict(
@@ -119,23 +117,17 @@ class NotificationDispatchTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), True)
         smtp_mock.return_value.__enter__.return_value.send_message.assert_called_once()
-        sent_message = (
-            smtp_mock.return_value.__enter__.return_value.send_message.call_args[0][0]
-        )
+        sent_message = smtp_mock.return_value.__enter__.return_value.send_message.call_args[0][0]
         self.assertEqual(sent_message["To"], "notify@example.com")
 
     def test_first_email_notification_scan_only_initializes_cursor(self):
         with self.app.app_context():
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
             from outlook_web.services import notification_dispatch
 
             self._insert_account("first@example.com", telegram_enabled=1)
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
 
             with (
                 patch.dict(
@@ -147,9 +139,7 @@ class NotificationDispatchTests(unittest.TestCase):
                     },
                     clear=False,
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as send_mock,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as send_mock,
             ):
                 notification_dispatch.run_email_notification_job(self.app)
 
@@ -157,9 +147,7 @@ class NotificationDispatchTests(unittest.TestCase):
             cursor = notification_state_repo.get_cursor(
                 notification_dispatch.CHANNEL_EMAIL,
                 notification_dispatch.SOURCE_ACCOUNT,
-                notification_dispatch.build_source_key(
-                    notification_dispatch.SOURCE_ACCOUNT, "first@example.com"
-                ),
+                notification_dispatch.build_source_key(notification_dispatch.SOURCE_ACCOUNT, "first@example.com"),
             )
             self.assertTrue(cursor)
 
@@ -177,9 +165,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
 
             def fake_fetch(source, since):
                 if source["source_type"] == notification_dispatch.SOURCE_ACCOUNT:
@@ -218,9 +204,7 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     side_effect=fake_fetch,
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as send_mock,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as send_mock,
             ):
                 notification_dispatch.run_email_notification_job(self.app)
 
@@ -230,9 +214,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 "SELECT channel, source_type, source_key, status FROM notification_delivery_logs ORDER BY source_type ASC"
             ).fetchall()
             self.assertEqual(len(rows), 2)
-            self.assertEqual(
-                {row["source_type"] for row in rows}, {"account", "temp_email"}
-            )
+            self.assertEqual({row["source_type"] for row in rows}, {"account", "temp_email"})
             self.assertTrue(all(row["status"] == "sent" for row in rows))
 
     def test_missing_message_id_uses_stable_fallback_dedup(self):
@@ -276,18 +258,12 @@ class NotificationDispatchTests(unittest.TestCase):
                 )
 
             self.assertEqual(len(sent), 1)
-            row = (
-                get_db()
-                .execute("SELECT message_id FROM notification_delivery_logs")
-                .fetchone()
-            )
+            row = get_db().execute("SELECT message_id FROM notification_delivery_logs").fetchone()
             self.assertTrue((row["message_id"] or "").startswith("fallback:"))
 
     def test_email_failure_keeps_cursor_for_retry(self):
         with self.app.app_context():
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
             from outlook_web.services import email_push, notification_dispatch
 
             self._insert_account("retry@example.com")
@@ -330,9 +306,7 @@ class NotificationDispatchTests(unittest.TestCase):
             cursor = notification_state_repo.get_cursor(
                 notification_dispatch.CHANNEL_EMAIL,
                 notification_dispatch.SOURCE_ACCOUNT,
-                notification_dispatch.build_source_key(
-                    notification_dispatch.SOURCE_ACCOUNT, "retry@example.com"
-                ),
+                notification_dispatch.build_source_key(notification_dispatch.SOURCE_ACCOUNT, "retry@example.com"),
             )
             self.assertEqual(cursor, "2026-03-01T00:00:00")
 
@@ -350,9 +324,7 @@ class NotificationDispatchTests(unittest.TestCase):
             cursor = notification_state_repo.get_cursor(
                 notification_dispatch.CHANNEL_EMAIL,
                 notification_dispatch.SOURCE_ACCOUNT,
-                notification_dispatch.build_source_key(
-                    notification_dispatch.SOURCE_ACCOUNT, "retry@example.com"
-                ),
+                notification_dispatch.build_source_key(notification_dispatch.SOURCE_ACCOUNT, "retry@example.com"),
             )
             self.assertEqual(cursor, "2026-03-02T10:00:00")
 
@@ -371,9 +343,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             settings_repo.set_setting("telegram_bot_token", encrypt_data("bot_token"))
             settings_repo.set_setting("telegram_chat_id", "123456")
             message = [
@@ -402,12 +372,8 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     return_value=message,
                 ) as fetch_mock,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_telegram_notification"
-                ) as telegram_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_telegram_notification") as telegram_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
@@ -513,9 +479,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             message = [
                 {
                     "message_id": "<email-only@example.com>",
@@ -542,12 +506,8 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     return_value=message,
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_telegram_notification"
-                ) as telegram_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_telegram_notification") as telegram_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
@@ -566,9 +526,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             message = [
                 {
                     "message_id": "<email-disabled@example.com>",
@@ -595,9 +553,7 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     return_value=message,
                 ) as fetch_mock,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
@@ -620,9 +576,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             settings_repo.set_setting("telegram_bot_token", encrypt_data("bot_token"))
             settings_repo.set_setting("telegram_chat_id", "123456")
 
@@ -639,12 +593,8 @@ class NotificationDispatchTests(unittest.TestCase):
                 patch(
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                 ) as fetch_mock,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_telegram_notification"
-                ) as telegram_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_telegram_notification") as telegram_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
@@ -657,17 +607,11 @@ class NotificationDispatchTests(unittest.TestCase):
     ):
         with self.app.app_context():
             from outlook_web.repositories import accounts as accounts_repo
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
             from outlook_web.services import notification_dispatch
 
-            account_id = self._insert_account(
-                "reenable@example.com", telegram_enabled=1
-            )
-            source_key = notification_dispatch.build_source_key(
-                notification_dispatch.SOURCE_ACCOUNT, "reenable@example.com"
-            )
+            account_id = self._insert_account("reenable@example.com", telegram_enabled=1)
+            source_key = notification_dispatch.build_source_key(notification_dispatch.SOURCE_ACCOUNT, "reenable@example.com")
             notification_state_repo.reset_channel_cursor(
                 notification_dispatch.CHANNEL_EMAIL,
                 notification_dispatch.SOURCE_ACCOUNT,
@@ -683,9 +627,7 @@ class NotificationDispatchTests(unittest.TestCase):
             accounts_repo.toggle_telegram_push(account_id, False)
             accounts_repo.toggle_telegram_push(account_id, True)
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
 
             fetched_cursors = []
 
@@ -707,9 +649,7 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     side_effect=fake_fetch,
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
@@ -747,12 +687,8 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     return_value=message,
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_telegram_notification"
-                ) as telegram_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_telegram_notification") as telegram_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
@@ -779,9 +715,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-10T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             settings_repo.set_setting("telegram_bot_token", encrypt_data("bot_token"))
             settings_repo.set_setting("telegram_chat_id", "123456")
 
@@ -824,22 +758,14 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     side_effect=fake_fetch,
                 ) as fetch_mock,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_telegram_notification"
-                ) as telegram_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_telegram_notification") as telegram_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
 
             called_cursors = [call.args[1] for call in fetch_mock.call_args_list]
-            self.assertEqual(
-                called_cursors, ["2026-03-01T00:00:00", "2026-03-10T00:00:00"]
-            )
-            self.assertEqual(
-                email_send.call_args[0][1]["message_id"], "<old-backlog@example.com>"
-            )
+            self.assertEqual(called_cursors, ["2026-03-01T00:00:00", "2026-03-10T00:00:00"])
+            self.assertEqual(email_send.call_args[0][1]["message_id"], "<old-backlog@example.com>")
             self.assertEqual(
                 telegram_send.call_args[0][1]["message_id"],
                 "<fresh-message@example.com>",
@@ -849,9 +775,7 @@ class NotificationDispatchTests(unittest.TestCase):
         self,
     ):
         with self.app.app_context():
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
             from outlook_web.services import notification_dispatch
 
             self._insert_account(
@@ -868,9 +792,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             settings_repo.set_setting("telegram_bot_token", encrypt_data("bot_token"))
             settings_repo.set_setting("telegram_chat_id", "123456")
             message = [
@@ -899,12 +821,8 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.fetch_source_messages",
                     return_value=message,
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as email_send,
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_telegram_notification"
-                ) as telegram_send,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as email_send,
+                patch("outlook_web.services.notification_dispatch.send_business_telegram_notification") as telegram_send,
             ):
                 notification_dispatch.run_notification_dispatch_job(self.app)
                 notification_dispatch.run_notification_dispatch_job(self.app)
@@ -914,16 +832,12 @@ class NotificationDispatchTests(unittest.TestCase):
             email_cursor = notification_state_repo.get_cursor(
                 notification_dispatch.CHANNEL_EMAIL,
                 notification_dispatch.SOURCE_ACCOUNT,
-                notification_dispatch.build_source_key(
-                    notification_dispatch.SOURCE_ACCOUNT, "unified-dedup@example.com"
-                ),
+                notification_dispatch.build_source_key(notification_dispatch.SOURCE_ACCOUNT, "unified-dedup@example.com"),
             )
             telegram_cursor = notification_state_repo.get_cursor(
                 notification_dispatch.CHANNEL_TELEGRAM,
                 notification_dispatch.SOURCE_ACCOUNT,
-                notification_dispatch.build_source_key(
-                    notification_dispatch.SOURCE_ACCOUNT, "unified-dedup@example.com"
-                ),
+                notification_dispatch.build_source_key(notification_dispatch.SOURCE_ACCOUNT, "unified-dedup@example.com"),
             )
             self.assertEqual(email_cursor, "2026-03-02T10:00:00")
             self.assertEqual(telegram_cursor, "2026-03-02T10:00:00")
@@ -939,9 +853,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             get_db().execute(
                 """
                 INSERT INTO temp_email_messages (
@@ -975,9 +887,7 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.notification_dispatch.TempMailService.list_messages",
                     return_value=[],  # 跳过远端 sync；DB 中已直接插入测试邮件
                 ),
-                patch(
-                    "outlook_web.services.notification_dispatch.send_business_email_notification"
-                ) as send_mock,
+                patch("outlook_web.services.notification_dispatch.send_business_email_notification") as send_mock,
             ):
                 notification_dispatch.run_email_notification_job(self.app)
 
@@ -988,9 +898,7 @@ class NotificationDispatchTests(unittest.TestCase):
 
     def test_claim_delivery_attempt_is_atomic_for_same_message(self):
         with self.app.app_context():
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
 
             result1 = notification_state_repo.claim_delivery_attempt(
                 "email",
@@ -1024,9 +932,7 @@ class NotificationDispatchTests(unittest.TestCase):
 
     def test_upsert_cursor_is_monotonic(self):
         with self.app.app_context():
-            from outlook_web.repositories import (
-                notification_state as notification_state_repo,
-            )
+            from outlook_web.repositories import notification_state as notification_state_repo
 
             notification_state_repo.reset_channel_cursor(
                 "email",
@@ -1047,9 +953,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 "2026-03-11T10:00:00",
             )
 
-            cursor = notification_state_repo.get_cursor(
-                "email", "account", "account:cursor@example.com"
-            )
+            cursor = notification_state_repo.get_cursor("email", "account", "account:cursor@example.com")
             self.assertEqual(cursor, "2026-03-12T10:00:00")
 
     def test_inbox_to_junkemail_move_does_not_repeat_same_channel(self):
@@ -1128,9 +1032,7 @@ class NotificationDispatchTests(unittest.TestCase):
                 cursor_value="2026-03-01T00:00:00",
             )
             settings_repo.set_setting("email_notification_enabled", "true")
-            settings_repo.set_setting(
-                "email_notification_recipient", "notify@example.com"
-            )
+            settings_repo.set_setting("email_notification_recipient", "notify@example.com")
             settings_repo.set_setting("telegram_bot_token", encrypt_data("bot_token"))
             settings_repo.set_setting("telegram_chat_id", "123456")
 
@@ -1244,13 +1146,9 @@ class NotificationDispatchTests(unittest.TestCase):
                     "outlook_web.services.telegram_push._fetch_new_emails_imap",
                     return_value=[],
                 ) as mock_imap,
-                patch(
-                    "outlook_web.services.telegram_push._fetch_new_emails_graph"
-                ) as mock_graph,
+                patch("outlook_web.services.telegram_push._fetch_new_emails_graph") as mock_graph,
             ):
-                notification_dispatch.fetch_source_messages(
-                    source, "2026-03-01T00:00:00"
-                )
+                notification_dispatch.fetch_source_messages(source, "2026-03-01T00:00:00")
 
             self.assertEqual(mock_imap.call_count, 2)
             mock_graph.assert_not_called()

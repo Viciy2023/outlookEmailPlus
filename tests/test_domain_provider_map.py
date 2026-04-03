@@ -110,16 +110,10 @@ class TestDomainProviderMap(unittest.TestCase):
         from outlook_web.services.providers import provider_supports_email_domain
 
         # 企业 onmicrosoft.com 应被 outlook provider 支持
-        self.assertTrue(
-            provider_supports_email_domain("outlook", "myorg.onmicrosoft.com")
-        )
-        self.assertTrue(
-            provider_supports_email_domain("outlook", "corp.onmicrosoft.com")
-        )
+        self.assertTrue(provider_supports_email_domain("outlook", "myorg.onmicrosoft.com"))
+        self.assertTrue(provider_supports_email_domain("outlook", "corp.onmicrosoft.com"))
         # 非 outlook provider 不支持
-        self.assertFalse(
-            provider_supports_email_domain("gmail", "myorg.onmicrosoft.com")
-        )
+        self.assertFalse(provider_supports_email_domain("gmail", "myorg.onmicrosoft.com"))
 
     def test_provider_supports_email_domain_edge_cases(self):
         from outlook_web.services.providers import provider_supports_email_domain

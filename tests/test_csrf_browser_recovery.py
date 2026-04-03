@@ -188,9 +188,7 @@ class CsrfBrowserRecoveryTests(unittest.TestCase):
     def _account_exists(self, email_addr: str) -> bool:
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT 1 FROM accounts WHERE email = ? LIMIT 1", (email_addr,)
-            ).fetchone()
+            row = conn.execute("SELECT 1 FROM accounts WHERE email = ? LIMIT 1", (email_addr,)).fetchone()
             return row is not None
         finally:
             conn.close()
@@ -247,9 +245,7 @@ class CsrfBrowserRecoveryTests(unittest.TestCase):
                 account_line,
             )
 
-            page.locator("#toast-container .toast.success").filter(
-                has_text="导入完成"
-            ).wait_for(timeout=15000)
+            page.locator("#toast-container .toast.success").filter(has_text="导入完成").wait_for(timeout=15000)
             page.wait_for_function(
                 """(targetEmail) => {
                     const cards = Array.from(document.querySelectorAll('.account-card .account-email'));

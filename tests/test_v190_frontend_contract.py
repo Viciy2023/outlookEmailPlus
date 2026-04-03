@@ -57,17 +57,13 @@ class V190FrontendContractTests(unittest.TestCase):
     def test_main_js_does_not_override_i18n_runtime_helpers(self):
         client = self.app.test_client()
         main_js = self._get_text(client, "/static/js/main.js")
-        self.assertIn(
-            "const pickApiMessage = (payload, fallbackZh, fallbackEn) =>", main_js
-        )
+        self.assertIn("const pickApiMessage = (payload, fallbackZh, fallbackEn) =>", main_js)
         self.assertIn("const formatUiDateTime = (dateStr, options = {}) =>", main_js)
         self.assertIn(
             "const formatUiRelativeTime = (dateStr, fallbackZh = '从未刷新', fallbackEn = 'Never refreshed') =>",
             main_js,
         )
-        self.assertNotIn(
-            "function pickApiMessage(payload, fallbackZh, fallbackEn)", main_js
-        )
+        self.assertNotIn("function pickApiMessage(payload, fallbackZh, fallbackEn)", main_js)
         self.assertNotIn("function formatUiDateTime(dateStr, options = {})", main_js)
         self.assertNotIn(
             "function formatUiRelativeTime(dateStr, fallbackZh = '从未刷新', fallbackEn = 'Never refreshed')",
@@ -210,9 +206,7 @@ class V190FrontendContractTests(unittest.TestCase):
             "这里只配置 Email 通知通道。普通邮箱需在账号列表开启通知后才会通过 Email 发送；临时邮箱按当前通知规则处理。启用后仅从新到达的邮件开始通知。",
             index_html,
         )
-        self.assertIn(
-            "这里只配置 Email 渠道的接收邮箱，不会让所有普通邮箱自动发送。", index_html
-        )
+        self.assertIn("这里只配置 Email 渠道的接收邮箱，不会让所有普通邮箱自动发送。", index_html)
         self.assertIn(
             "这里只配置 Telegram 通知通道。普通邮箱需在账号列表开启通知后才会通过 Telegram 发送；临时邮箱按当前通知规则处理。",
             index_html,
@@ -251,9 +245,7 @@ class V190FrontendContractTests(unittest.TestCase):
 
         self.assertIn("function parseIntegerSetting(value, fallback)", main_js)
         self.assertIn("let autoPollingEnabled = false;", main_js)
-        self.assertIn(
-            "function applyPollingSettings(settings, { restart = false", main_js
-        )
+        self.assertIn("function applyPollingSettings(settings, { restart = false", main_js)
         # [Phase 3 兼容] 使用两个字段的或运算
         self.assertIn(
             "autoPollingEnabled = isAutoPollingEnabledSetting(settings.enable_auto_polling)",
@@ -263,12 +255,8 @@ class V190FrontendContractTests(unittest.TestCase):
             "|| isAutoPollingEnabledSetting(settings.enable_compact_auto_poll);",
             main_js,
         )
-        self.assertIn(
-            "String(parseIntegerSetting(data.settings.polling_count, 5))", main_js
-        )
-        self.assertIn(
-            "maxPollingCount = parseIntegerSetting(settings.polling_count, 5);", main_js
-        )
+        self.assertIn("String(parseIntegerSetting(data.settings.polling_count, 5))", main_js)
+        self.assertIn("maxPollingCount = parseIntegerSetting(settings.polling_count, 5);", main_js)
         self.assertIn("applyPollingSettings(settings, { restart: true });", main_js)
         self.assertNotIn("data.settings.polling_count || '5'", main_js)
         self.assertNotIn("parseInt(data.settings.polling_count) || 5", main_js)
@@ -326,9 +314,7 @@ class V190FrontendContractTests(unittest.TestCase):
             main_js,
         )
         self.assertIn("data.settings.pool_external_enabled === true", main_js)
-        self.assertIn(
-            "settings.pool_external_enabled = poolExternalEnabledEl.checked", main_js
-        )
+        self.assertIn("settings.pool_external_enabled = poolExternalEnabledEl.checked", main_js)
         self.assertIn(
             "settings.external_api_disable_pool_claim_random = disablePoolClaimRandomEl.checked",
             main_js,
@@ -356,9 +342,7 @@ class V190FrontendContractTests(unittest.TestCase):
     def test_account_edit_uses_conditional_outlook_credential_validation(self):
         client = self.app.test_client()
         accounts_js = self._get_text(client, "/static/js/features/accounts.js")
-        self.assertIn(
-            "clientIdInput.dataset.originalValue = acc.client_id || '';", accounts_js
-        )
+        self.assertIn("clientIdInput.dataset.originalValue = acc.client_id || '';", accounts_js)
         self.assertIn(
             "const wantsToUpdateOutlookCredentials = !isImap && (hasClientIdChanged || !!refreshToken);",
             accounts_js,
@@ -367,9 +351,7 @@ class V190FrontendContractTests(unittest.TestCase):
             "if (wantsToUpdateOutlookCredentials && (!data.client_id || !data.refresh_token))",
             accounts_js,
         )
-        self.assertNotIn(
-            "if (!isImap && (!data.client_id || !data.refresh_token))", accounts_js
-        )
+        self.assertNotIn("if (!isImap && (!data.client_id || !data.refresh_token))", accounts_js)
 
     def test_collapsed_sidebar_hides_github_label_to_avoid_overlap(self):
         client = self.app.test_client()
@@ -377,9 +359,7 @@ class V190FrontendContractTests(unittest.TestCase):
         i18n_js = self._get_text(client, "/static/js/i18n.js")
         self.assertIn(".sidebar-collapsed .btn-github span { display: none; }", css)
         self.assertIn(".sidebar-collapsed .btn-github {", css)
-        self.assertIn(
-            ".sidebar-collapsed #globalLanguageSwitcher.switcher-docked", i18n_js
-        )
+        self.assertIn(".sidebar-collapsed #globalLanguageSwitcher.switcher-docked", i18n_js)
 
     def test_scroll_is_not_globally_locked_on_html_body(self):
         client = self.app.test_client()

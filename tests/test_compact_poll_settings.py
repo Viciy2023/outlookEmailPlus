@@ -168,15 +168,9 @@ class CompactPollSettingsTests(unittest.TestCase):
         with self.app.app_context():
             from outlook_web.repositories import settings as settings_repo
 
-            self.assertEqual(
-                settings_repo.get_setting("enable_compact_auto_poll", None), None
-            )
-            self.assertEqual(
-                settings_repo.get_setting("compact_poll_interval", None), None
-            )
-            self.assertEqual(
-                settings_repo.get_setting("compact_poll_max_count", None), None
-            )
+            self.assertEqual(settings_repo.get_setting("enable_compact_auto_poll", None), None)
+            self.assertEqual(settings_repo.get_setting("compact_poll_interval", None), None)
+            self.assertEqual(settings_repo.get_setting("compact_poll_max_count", None), None)
 
     # TC-A08: 字符串 "false"
     def test_put_false_then_get_returns_false(self):

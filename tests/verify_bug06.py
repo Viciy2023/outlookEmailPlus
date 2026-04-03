@@ -11,8 +11,9 @@ BUG-06 验证脚本：生成临时邮箱后，当前选中邮箱不应被重置
 7. 再次读取 currentAccount，应该与步骤 4 一致
 """
 
-from playwright.sync_api import sync_playwright
 import time
+
+from playwright.sync_api import sync_playwright
 
 
 def get_login_password():
@@ -42,29 +43,21 @@ def run():
         print("    截图: bug06_01_home.png")
 
         # 检查是否需要登录
-        login_form = page.locator(
-            "#loginForm, form[action*='login'], input[type='password']"
-        )
+        login_form = page.locator("#loginForm, form[action*='login'], input[type='password']")
         if page.url.__contains__("login") or login_form.count() > 0:
             if not login_password:
-                print(
-                    "    ❌ 检测到登录页，但未能从 .env 读取 LOGIN_PASSWORD，测试中止"
-                )
+                print("    ❌ 检测到登录页，但未能从 .env 读取 LOGIN_PASSWORD，测试中止")
                 browser.close()
                 return
             print(f"[1a] 检测到登录页，自动填入密码...")
             pwd_input = page.locator("input[type='password']").first
             pwd_input.fill(login_password)
             # 提交登录表单
-            submit_btn = page.locator(
-                "button[type='submit'], input[type='submit']"
-            ).first
+            submit_btn = page.locator("button[type='submit'], input[type='submit']").first
             submit_btn.click()
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(1000)
-            page.screenshot(
-                path="tests/screenshots/bug06_01a_after_login.png", full_page=True
-            )
+            page.screenshot(path="tests/screenshots/bug06_01a_after_login.png", full_page=True)
             print("    登录完成，截图: bug06_01a_after_login.png")
 
         print("[2] 导航到临时邮箱页面...")
@@ -77,9 +70,7 @@ def run():
             page.evaluate("navigate('temp-emails')")
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(1000)
-        page.screenshot(
-            path="tests/screenshots/bug06_02_temp_emails.png", full_page=True
-        )
+        page.screenshot(path="tests/screenshots/bug06_02_temp_emails.png", full_page=True)
         print("    截图: bug06_02_temp_emails.png")
 
         # 检查是否有现有的临时邮箱
@@ -115,9 +106,7 @@ def run():
         print("    截图: bug06_03_selected.png")
 
         if current_before != first_email:
-            print(
-                f"    ⚠️  currentAccount ({current_before}) 与点击的邮箱 ({first_email}) 不匹配，请检查"
-            )
+            print(f"    ⚠️  currentAccount ({current_before}) 与点击的邮箱 ({first_email}) 不匹配，请检查")
 
         # 生成新的临时邮箱
         print("[5] 点击「+ 创建」生成新临时邮箱...")
@@ -133,9 +122,7 @@ def run():
         page.wait_for_timeout(3000)
         page.wait_for_load_state("networkidle")
 
-        page.screenshot(
-            path="tests/screenshots/bug06_04_after_generate.png", full_page=True
-        )
+        page.screenshot(path="tests/screenshots/bug06_04_after_generate.png", full_page=True)
         print("    截图: bug06_04_after_generate.png")
 
         # 读取生成后的 currentAccount
@@ -148,9 +135,7 @@ def run():
         # 判断结果
         print("\n" + "=" * 50)
         if current_after == current_before:
-            print(
-                f"✅ BUG-06 已修复！生成新邮箱前后 currentAccount 保持不变：{current_after!r}"
-            )
+            print(f"✅ BUG-06 已修复！生成新邮箱前后 currentAccount 保持不变：{current_after!r}")
         elif current_after is None:
             print(f"❌ BUG-06 仍存在！生成后 currentAccount 被清空为 None")
             print(f"   预期: {current_before!r}")
@@ -164,16 +149,12 @@ def run():
         active_cards = page.locator("#tempEmailContainer .account-card.active")
         active_count = active_cards.count()
         if active_count > 0:
-            active_email = (
-                active_cards.first.locator(".account-email").inner_text().strip()
-            )
+            active_email = active_cards.first.locator(".account-email").inner_text().strip()
             print(f"\n活跃卡片高亮: {active_email!r}")
             if active_email == current_before:
                 print("✅ 卡片高亮状态也正确保持")
             else:
-                print(
-                    f"⚠️  卡片高亮与 currentAccount 不一致（高亮: {active_email!r}, currentAccount: {current_after!r}）"
-                )
+                print(f"⚠️  卡片高亮与 currentAccount 不一致（高亮: {active_email!r}, currentAccount: {current_after!r}）")
         else:
             print("\n⚠️  没有任何卡片处于 active 状态")
 

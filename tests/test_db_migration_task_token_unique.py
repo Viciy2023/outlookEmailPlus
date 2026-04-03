@@ -19,30 +19,24 @@ class DbMigrationTaskTokenUniqueTests(unittest.TestCase):
     def _seed_legacy_db(self, db_path: Path, *, duplicate_token: bool) -> None:
         conn = sqlite3.connect(str(db_path))
         try:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
                     value TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-                """
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '14')"
-            )
+                """)
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('db_schema_version', '14')")
 
             # 旧库：temp_emails 有 task_token 列，但没有 UNIQUE 约束。
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS temp_emails (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     email TEXT UNIQUE NOT NULL,
                     status TEXT DEFAULT 'active',
                     task_token TEXT
                 )
-                """
-            )
+                """)
             conn.execute("DELETE FROM temp_emails")
 
             token_a = "tmptask_dup" if duplicate_token else "tmptask_unique_1"
@@ -79,9 +73,7 @@ class DbMigrationTaskTokenUniqueTests(unittest.TestCase):
             conn = sqlite3.connect(str(db_path))
             try:
                 # 失败时应记录到 schema_migrations，且不要创建唯一索引。
-                row = conn.execute(
-                    "SELECT status, error FROM schema_migrations ORDER BY id DESC LIMIT 1"
-                ).fetchone()
+                row = conn.execute("SELECT status, error FROM schema_migrations ORDER BY id DESC LIMIT 1").fetchone()
                 self.assertIsNotNone(row)
                 self.assertEqual(row[0], "failed")
                 self.assertIn("task_token", str(row[1] or ""))
@@ -104,9 +96,7 @@ class DbMigrationTaskTokenUniqueTests(unittest.TestCase):
 
             conn = sqlite3.connect(str(db_path))
             try:
-                version_row = conn.execute(
-                    "SELECT value FROM settings WHERE key = 'db_schema_version'"
-                ).fetchone()
+                version_row = conn.execute("SELECT value FROM settings WHERE key = 'db_schema_version'").fetchone()
                 self.assertIsNotNone(version_row)
                 self.assertEqual(str(version_row[0]), "17")
 

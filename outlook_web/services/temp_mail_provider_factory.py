@@ -18,9 +18,7 @@ class TempMailProviderFactoryError(Exception):
 
 
 def get_temp_mail_provider(provider_name: str | None = None) -> TempMailProviderBase:
-    resolved_provider_name = settings_repo.get_temp_mail_runtime_provider_name(
-        provider_name
-    )
+    resolved_provider_name = settings_repo.get_temp_mail_runtime_provider_name(provider_name)
     if not resolved_provider_name:
         raise TempMailProviderFactoryError(
             "TEMP_MAIL_PROVIDER_NOT_CONFIGURED",

@@ -17,9 +17,7 @@ class TestBaselineTimestampFilter(unittest.TestCase):
             "from_address": "sender@example.com",
             "subject": subject,
             "timestamp": timestamp,
-            "created_at": datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            .isoformat()
-            .replace("+00:00", "Z"),
+            "created_at": datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace("+00:00", "Z"),
         }
 
     def test_no_baseline_returns_all(self):
@@ -93,9 +91,7 @@ class TestEmailDomainNormalization(unittest.TestCase):
     def test_normalize_extracts_domain(self):
         from outlook_web.repositories.accounts import _normalize_account_email_domain
 
-        self.assertEqual(
-            _normalize_account_email_domain("user@Outlook.COM"), "outlook.com"
-        )
+        self.assertEqual(_normalize_account_email_domain("user@Outlook.COM"), "outlook.com")
         self.assertEqual(_normalize_account_email_domain("user@gmail.com"), "gmail.com")
         self.assertEqual(
             _normalize_account_email_domain("user@corp.onmicrosoft.com"),
@@ -111,9 +107,7 @@ class TestEmailDomainNormalization(unittest.TestCase):
     def test_normalize_whitespace(self):
         from outlook_web.repositories.accounts import _normalize_account_email_domain
 
-        self.assertEqual(
-            _normalize_account_email_domain("user@  EXAMPLE.COM  "), "example.com"
-        )
+        self.assertEqual(_normalize_account_email_domain("user@  EXAMPLE.COM  "), "example.com")
 
 
 class TestPoolRepoClaimContext(unittest.TestCase):
@@ -121,9 +115,10 @@ class TestPoolRepoClaimContext(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from outlook_web.db import create_sqlite_connection, init_db
-        import tempfile
         import os
+        import tempfile
+
+        from outlook_web.db import create_sqlite_connection, init_db
 
         cls.db_fd, cls.db_path = tempfile.mkstemp(suffix=".db")
         os.close(cls.db_fd)
@@ -144,9 +139,7 @@ class TestPoolRepoClaimContext(unittest.TestCase):
 
         return create_sqlite_connection(self.db_path)
 
-    def _insert_account(
-        self, email: str, pool_status: str = "claimed", claim_token: str = "clm_test123"
-    ) -> int:
+    def _insert_account(self, email: str, pool_status: str = "claimed", claim_token: str = "clm_test123") -> int:
         conn = self._conn()
         try:
             conn.execute(
@@ -162,9 +155,7 @@ class TestPoolRepoClaimContext(unittest.TestCase):
                 (email, pool_status, claim_token, email.rsplit("@", 1)[-1].lower()),
             )
             conn.commit()
-            row = conn.execute(
-                "SELECT id FROM accounts WHERE email = ?", (email,)
-            ).fetchone()
+            row = conn.execute("SELECT id FROM accounts WHERE email = ?", (email,)).fetchone()
             return row["id"]
         finally:
             conn.close()
@@ -203,9 +194,7 @@ class TestPoolRepoClaimContext(unittest.TestCase):
         account_id = self._insert_account(email, claim_token=token)
         conn = self._conn()
         try:
-            append_claim_read_context(
-                conn, account_id, token, "bot", "task2", "test read"
-            )
+            append_claim_read_context(conn, account_id, token, "bot", "task2", "test read")
             row = conn.execute(
                 "SELECT * FROM account_claim_logs WHERE claim_token = ? AND action = 'read'",
                 (token,),

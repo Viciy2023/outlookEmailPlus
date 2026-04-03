@@ -89,9 +89,7 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         # ProxyFix 中间件（仅在配置启用时应用）
         # 注意：启用前必须配置 TRUSTED_PROXIES 环境变量
         if config.get_proxy_fix_enabled():
-            app.wsgi_app = ProxyFix(
-                app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
-            )
+            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
         # DB teardown（请求结束释放连接）
         register_db(app)
@@ -101,11 +99,7 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         import sys
 
         _log_handler = logging.StreamHandler(sys.stderr)
-        _log_handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s %(name)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
-            )
-        )
+        _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s", datefmt="%H:%M:%S"))
         _ow_logger = logging.getLogger("outlook_web")
         if not _ow_logger.handlers:
             _ow_logger.addHandler(_log_handler)
@@ -132,9 +126,7 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         app.register_blueprint(system.create_blueprint())
         app.register_blueprint(audit.create_blueprint())
         app.register_blueprint(external_pool.create_blueprint(csrf_exempt=csrf_exempt))
-        app.register_blueprint(
-            external_temp_emails.create_blueprint(csrf_exempt=csrf_exempt)
-        )
+        app.register_blueprint(external_temp_emails.create_blueprint(csrf_exempt=csrf_exempt))
 
         # 打印初始化信息
         print("=" * 60)
@@ -151,15 +143,11 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         from outlook_web.services import scheduler as scheduler_service
 
         if scheduler_service.should_autostart_scheduler():
-            scheduler_service.init_scheduler(
-                _APP_INSTANCE, graph_service.test_refresh_token_with_rotation
-            )
+            scheduler_service.init_scheduler(_APP_INSTANCE, graph_service.test_refresh_token_with_rotation)
     elif autostart_scheduler:
         from outlook_web.services import graph as graph_service
         from outlook_web.services import scheduler as scheduler_service
 
-        scheduler_service.init_scheduler(
-            _APP_INSTANCE, graph_service.test_refresh_token_with_rotation
-        )
+        scheduler_service.init_scheduler(_APP_INSTANCE, graph_service.test_refresh_token_with_rotation)
 
     return _APP_INSTANCE

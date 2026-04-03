@@ -85,9 +85,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
         self.assertIsInstance(data.get("error"), dict)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_REQUIRED"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_REQUIRED")
         self.assertTrue(data["error"].get("message_en"))
 
     def test_t_api_004_invalid_recipient_returns_stable_error_code(self):
@@ -105,9 +103,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
         self.assertIsInstance(data.get("error"), dict)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_INVALID"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_INVALID")
         self.assertEqual(
             data["error"].get("message_en"),
             "Invalid notification recipient email address",
@@ -137,9 +133,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
         self.assertIsInstance(data.get("error"), dict)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_SERVICE_UNAVAILABLE"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_SERVICE_UNAVAILABLE")
         self.assertTrue(data["error"].get("message_en"))
 
     def test_t_api_005b_save_recipient_success_contains_message_en(self):
@@ -183,12 +177,8 @@ class V190ApiContractRedTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 503)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_PORT_INVALID"
-        )
-        self.assertEqual(
-            data["error"].get("message_en"), "Email notification SMTP port is invalid"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_PORT_INVALID")
+        self.assertEqual(data["error"].get("message_en"), "Email notification SMTP port is invalid")
 
     def test_t_api_005d_enable_notification_invalid_smtp_timeout_returns_precise_error(
         self,
@@ -216,9 +206,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 503)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_TIMEOUT_INVALID"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_TIMEOUT_INVALID")
         self.assertEqual(
             data["error"].get("message_en"),
             "Email notification SMTP timeout is invalid",
@@ -237,9 +225,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
         self.assertIsInstance(data.get("error"), dict)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_NOT_CONFIGURED"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_NOT_CONFIGURED")
         self.assertTrue(data["error"].get("message_en"))
 
     def test_t_api_007_email_test_success_uses_saved_recipient_and_message_en(self):
@@ -264,9 +250,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), True)
         self.assertEqual(data.get("message"), "测试邮件已提交，请检查收件箱")
-        self.assertEqual(
-            data.get("message_en"), "Test email accepted. Please check your inbox"
-        )
+        self.assertEqual(data.get("message_en"), "Test email accepted. Please check your inbox")
         smtp_mock.return_value.__enter__.return_value.send_message.assert_called_once()
 
     def test_t_api_007b_email_test_unavailable_returns_structured_error(self):
@@ -288,9 +272,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
         self.assertIsInstance(data.get("error"), dict)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_SERVICE_UNAVAILABLE"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_SERVICE_UNAVAILABLE")
         self.assertTrue(data["error"].get("message_en"))
 
     def test_t_api_007c_email_test_invalid_smtp_port_returns_stable_error(self):
@@ -311,12 +293,8 @@ class V190ApiContractRedTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 503)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_PORT_INVALID"
-        )
-        self.assertEqual(
-            data["error"].get("message_en"), "Email notification SMTP port is invalid"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_PORT_INVALID")
+        self.assertEqual(data["error"].get("message_en"), "Email notification SMTP port is invalid")
 
     def test_t_api_007d_email_test_invalid_timeout_returns_stable_error(self):
         client = self.app.test_client()
@@ -337,9 +315,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 503)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_TIMEOUT_INVALID"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_SMTP_TIMEOUT_INVALID")
         self.assertEqual(
             data["error"].get("message_en"),
             "Email notification SMTP timeout is invalid",
@@ -363,9 +339,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
-        self.assertEqual(
-            data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_INVALID"
-        )
+        self.assertEqual(data["error"].get("code"), "EMAIL_NOTIFICATION_RECIPIENT_INVALID")
         self.assertEqual(
             data["error"].get("message_en"),
             "Invalid notification recipient email address",
@@ -386,9 +360,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         client = self.app.test_client()
         self._login(client)
 
-        resp = client.post(
-            "/api/settings/validate-cron", json={"cron_expression": "invalid cron expr"}
-        )
+        resp = client.post("/api/settings/validate-cron", json={"cron_expression": "invalid cron expr"})
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
@@ -451,9 +423,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         self._login(client)
         account_id = self._insert_account("v190_toggle@example.com")
 
-        resp = client.post(
-            f"/api/accounts/{account_id}/telegram-toggle", json={"enabled": True}
-        )
+        resp = client.post(f"/api/accounts/{account_id}/telegram-toggle", json={"enabled": True})
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), True)
@@ -463,9 +433,7 @@ class V190ApiContractRedTests(unittest.TestCase):
         client = self.app.test_client()
         self._login(client)
 
-        resp = client.post(
-            "/api/accounts/999999/telegram-toggle", json={"enabled": True}
-        )
+        resp = client.post("/api/accounts/999999/telegram-toggle", json={"enabled": True})
         self.assertEqual(resp.status_code, 404)
         data = resp.get_json() or {}
         self.assertEqual(data.get("success"), False)
@@ -488,9 +456,7 @@ class V190NotificationSchemaRedTests(unittest.TestCase):
 
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT value FROM settings WHERE key = 'db_schema_version'"
-            ).fetchone()
+            row = conn.execute("SELECT value FROM settings WHERE key = 'db_schema_version'").fetchone()
             self.assertIsNotNone(row)
             self.assertGreaterEqual(
                 int(row[0]),
@@ -506,9 +472,7 @@ class V190NotificationSchemaRedTests(unittest.TestCase):
             row = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notification_cursor_states'"
             ).fetchone()
-            self.assertIsNotNone(
-                row, "TDD-00010 / TD-00010 要求新增 notification_cursor_states 表"
-            )
+            self.assertIsNotNone(row, "TDD-00010 / TD-00010 要求新增 notification_cursor_states 表")
         finally:
             conn.close()
 
@@ -518,9 +482,7 @@ class V190NotificationSchemaRedTests(unittest.TestCase):
             row = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'notification_delivery_logs'"
             ).fetchone()
-            self.assertIsNotNone(
-                row, "TDD-00010 / TD-00010 要求新增 notification_delivery_logs 表"
-            )
+            self.assertIsNotNone(row, "TDD-00010 / TD-00010 要求新增 notification_delivery_logs 表")
         finally:
             conn.close()
 
@@ -530,13 +492,9 @@ class V190NotificationSchemaRedTests(unittest.TestCase):
             table_sql_row = conn.execute(
                 "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'notification_delivery_logs'"
             ).fetchone()
-            self.assertIsNotNone(
-                table_sql_row, "notification_delivery_logs 表必须存在后才能校验唯一键"
-            )
+            self.assertIsNotNone(table_sql_row, "notification_delivery_logs 表必须存在后才能校验唯一键")
             table_sql = table_sql_row[0] or ""
-            self.assertIn(
-                "UNIQUE(channel, source_type, source_key, message_id)", table_sql
-            )
+            self.assertIn("UNIQUE(channel, source_type, source_key, message_id)", table_sql)
         finally:
             conn.close()
 

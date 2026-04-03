@@ -167,9 +167,7 @@ class AccountEditBrowserFlowTests(unittest.TestCase):
     def _default_group_id(self) -> int:
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT id FROM groups WHERE name = '默认分组' LIMIT 1"
-            ).fetchone()
+            row = conn.execute("SELECT id FROM groups WHERE name = '默认分组' LIMIT 1").fetchone()
             return int(row["id"]) if row else 1
         finally:
             conn.close()
@@ -219,9 +217,7 @@ class AccountEditBrowserFlowTests(unittest.TestCase):
     def _get_account_row(self, account_id: int):
         conn = self.module.create_sqlite_connection()
         try:
-            return conn.execute(
-                "SELECT * FROM accounts WHERE id = ? LIMIT 1", (account_id,)
-            ).fetchone()
+            return conn.execute("SELECT * FROM accounts WHERE id = ? LIMIT 1", (account_id,)).fetchone()
         finally:
             conn.close()
 
@@ -248,9 +244,7 @@ class AccountEditBrowserFlowTests(unittest.TestCase):
             page.locator('.nav-item[data-page="mailbox"]').click()
             page.wait_for_load_state("networkidle")
 
-            account_card = (
-                page.locator(".account-card").filter(has_text=account["email"]).first
-            )
+            account_card = page.locator(".account-card").filter(has_text=account["email"]).first
             account_card.wait_for(timeout=10000)
             account_card.hover()
             account_card.locator('button[title="编辑"]').evaluate("(el) => el.click()")
@@ -262,8 +256,7 @@ class AccountEditBrowserFlowTests(unittest.TestCase):
             page.fill("#editRemark", new_remark)
 
             with page.expect_request(
-                lambda req: req.method == "PUT"
-                and req.url.endswith(f"/api/accounts/{account['id']}")
+                lambda req: req.method == "PUT" and req.url.endswith(f"/api/accounts/{account['id']}")
             ) as request_info:
                 page.locator("#editAccountModal button").filter(has_text="保存").click()
 
@@ -273,25 +266,17 @@ class AccountEditBrowserFlowTests(unittest.TestCase):
             self.assertEqual(payload.get("client_id"), "")
             self.assertEqual(payload.get("refresh_token"), "")
 
-            page.locator("#toast-container .toast.success").filter(
-                has_text="账号更新成功"
-            ).wait_for(timeout=10000)
-            page.wait_for_function(
-                "() => !document.getElementById('editAccountModal').classList.contains('show')"
+            page.locator("#toast-container .toast.success").filter(has_text="账号更新成功").wait_for(timeout=10000)
+            page.wait_for_function("() => !document.getElementById('editAccountModal').classList.contains('show')")
+            page.locator(".account-card").filter(has_text=account["email"]).filter(has_text=new_remark).first.wait_for(
+                timeout=10000
             )
-            page.locator(".account-card").filter(has_text=account["email"]).filter(
-                has_text=new_remark
-            ).first.wait_for(timeout=10000)
 
             row = self._get_account_row(account["id"])
             self.assertIsNotNone(row)
             self.assertEqual((row["remark"] or ""), new_remark)
             self.assertEqual(row["client_id"], account["client_id"])
-            self.assertEqual(
-                self._decrypt_if_needed(row["password"]), account["password"]
-            )
-            self.assertEqual(
-                self._decrypt_if_needed(row["refresh_token"]), account["refresh_token"]
-            )
+            self.assertEqual(self._decrypt_if_needed(row["password"]), account["password"])
+            self.assertEqual(self._decrypt_if_needed(row["refresh_token"]), account["refresh_token"])
         finally:
             context.close()

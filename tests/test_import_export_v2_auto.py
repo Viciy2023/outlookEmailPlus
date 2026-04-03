@@ -30,9 +30,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
     def _default_group_id(self) -> int:
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT id FROM groups WHERE name = '默认分组' LIMIT 1"
-            ).fetchone()
+            row = conn.execute("SELECT id FROM groups WHERE name = '默认分组' LIMIT 1").fetchone()
             return int(row["id"]) if row else 1
         finally:
             conn.close()
@@ -40,9 +38,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
     def _temp_email_group_id(self) -> int:
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT id FROM groups WHERE name = '临时邮箱' LIMIT 1"
-            ).fetchone()
+            row = conn.execute("SELECT id FROM groups WHERE name = '临时邮箱' LIMIT 1").fetchone()
             self.assertIsNotNone(row)
             return int(row["id"])
         finally:
@@ -51,9 +47,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
     def _get_or_create_group(self, name: str) -> int:
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT id FROM groups WHERE name = ? LIMIT 1", (name,)
-            ).fetchone()
+            row = conn.execute("SELECT id FROM groups WHERE name = ? LIMIT 1", (name,)).fetchone()
             if row:
                 return int(row["id"])
             cur = conn.execute(
@@ -68,9 +62,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
     def _get_group_id_by_name(self, name: str) -> int:
         conn = self.module.create_sqlite_connection()
         try:
-            row = conn.execute(
-                "SELECT id FROM groups WHERE name = ? LIMIT 1", (name,)
-            ).fetchone()
+            row = conn.execute("SELECT id FROM groups WHERE name = ? LIMIT 1", (name,)).fetchone()
             self.assertIsNotNone(row)
             return int(row["id"])
         finally:
@@ -79,9 +71,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
     def _get_account_row(self, email_addr: str):
         conn = self.module.create_sqlite_connection()
         try:
-            return conn.execute(
-                "SELECT * FROM accounts WHERE email = ? LIMIT 1", (email_addr,)
-            ).fetchone()
+            return conn.execute("SELECT * FROM accounts WHERE email = ? LIMIT 1", (email_addr,)).fetchone()
         finally:
             conn.close()
 
@@ -208,9 +198,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
         self.assertEqual((out_row["provider"] or "").lower(), "outlook")
         self.assertEqual(out_row["client_id"], client_id)
         self.assertEqual(self._decrypt_if_needed(out_row["password"]), outlook_password)
-        self.assertEqual(
-            self._decrypt_if_needed(out_row["refresh_token"]), refresh_token
-        )
+        self.assertEqual(self._decrypt_if_needed(out_row["refresh_token"]), refresh_token)
 
         gmail_row = self._get_account_row(gmail_email)
         self.assertIsNotNone(gmail_row)
@@ -218,17 +206,13 @@ class ImportExportV2AutoTests(unittest.TestCase):
         self.assertEqual((gmail_row["provider"] or "").lower(), "gmail")
         self.assertEqual((gmail_row["imap_host"] or "").lower(), "imap.gmail.com")
         self.assertEqual(int(gmail_row["imap_port"] or 0), 993)
-        self.assertEqual(
-            self._decrypt_if_needed(gmail_row["imap_password"]), gmail_imap_pwd
-        )
+        self.assertEqual(self._decrypt_if_needed(gmail_row["imap_password"]), gmail_imap_pwd)
 
         qq_row = self._get_account_row(qq_email)
         self.assertIsNotNone(qq_row)
         self.assertEqual((qq_row["account_type"] or "").lower(), "imap")
         self.assertEqual((qq_row["provider"] or "").lower(), "qq")
-        self.assertEqual(
-            (qq_row["imap_host"] or "").lower(), "imap.qq.com"
-        )  # 2 段格式域名推断
+        self.assertEqual((qq_row["imap_host"] or "").lower(), "imap.qq.com")  # 2 段格式域名推断
         self.assertEqual(int(qq_row["imap_port"] or 0), 993)
         self.assertEqual(self._decrypt_if_needed(qq_row["imap_password"]), qq_imap_pwd)
 
@@ -238,18 +222,14 @@ class ImportExportV2AutoTests(unittest.TestCase):
         self.assertEqual((custom_row["provider"] or "").lower(), "custom")
         self.assertEqual((custom_row["imap_host"] or "").lower(), custom_host.lower())
         self.assertEqual(int(custom_row["imap_port"] or 0), custom_port)
-        self.assertEqual(
-            self._decrypt_if_needed(custom_row["imap_password"]), custom_imap_pwd
-        )
+        self.assertEqual(self._decrypt_if_needed(custom_row["imap_password"]), custom_imap_pwd)
 
         temp_as_account = self._get_account_row(temp_mail_email)
         self.assertIsNone(temp_as_account)
 
         conn = self.module.create_sqlite_connection()
         try:
-            tmp_row = conn.execute(
-                "SELECT * FROM temp_emails WHERE email = ? LIMIT 1", (temp_mail_email,)
-            ).fetchone()
+            tmp_row = conn.execute("SELECT * FROM temp_emails WHERE email = ? LIMIT 1", (temp_mail_email,)).fetchone()
         finally:
             conn.close()
         self.assertIsNotNone(tmp_row)
@@ -301,9 +281,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
 
         conn = self.module.create_sqlite_connection()
         try:
-            actual_row = conn.execute(
-                "SELECT * FROM temp_emails WHERE email = ? LIMIT 1", (actual_email,)
-            ).fetchone()
+            actual_row = conn.execute("SELECT * FROM temp_emails WHERE email = ? LIMIT 1", (actual_email,)).fetchone()
             requested_row = conn.execute(
                 "SELECT * FROM temp_emails WHERE email = ? LIMIT 1",
                 (requested_email,),
@@ -356,9 +334,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
         bad_email = f"auto_unknown_{unique}@corp-unknown.com"
         good_email = f"auto_g_{unique}@gmail.com"
 
-        account_string = "\n".join(
-            [f"{bad_email}----pw_{unique}", f"{good_email}----gp_{unique}----gmail"]
-        )
+        account_string = "\n".join([f"{bad_email}----pw_{unique}", f"{good_email}----gp_{unique}----gmail"])
 
         resp = client.post(
             "/api/accounts",
@@ -556,20 +532,12 @@ class ImportExportV2AutoTests(unittest.TestCase):
                     "active",
                 ),
             )
-            conn.execute(
-                "INSERT OR IGNORE INTO temp_emails (email) VALUES (?)", (tmp1,)
-            )
-            conn.execute(
-                "INSERT OR IGNORE INTO temp_emails (email) VALUES (?)", (tmp2,)
-            )
+            conn.execute("INSERT OR IGNORE INTO temp_emails (email) VALUES (?)", (tmp1,))
+            conn.execute("INSERT OR IGNORE INTO temp_emails (email) VALUES (?)", (tmp2,))
             conn.commit()
 
-            temp_total = conn.execute(
-                "SELECT COUNT(*) as c FROM temp_emails"
-            ).fetchone()["c"]
-            acc_total = conn.execute(
-                "SELECT COUNT(*) as c FROM accounts WHERE group_id = ?", (group_id,)
-            ).fetchone()["c"]
+            temp_total = conn.execute("SELECT COUNT(*) as c FROM temp_emails").fetchone()["c"]
+            acc_total = conn.execute("SELECT COUNT(*) as c FROM accounts WHERE group_id = ?", (group_id,)).fetchone()["c"]
         finally:
             conn.close()
 
@@ -619,9 +587,7 @@ class ImportExportV2AutoTests(unittest.TestCase):
         self.assertEqual(total, int(acc_total) + int(temp_total))
 
         # 文件名：需要包含时间戳（对齐 PRD-00006）
-        filename = self._parse_export_filename(
-            export2.headers.get("Content-Disposition", "")
-        )
+        filename = self._parse_export_filename(export2.headers.get("Content-Disposition", ""))
         self.assertTrue(filename.startswith("accounts_export_selected_"))
         self.assertRegex(filename, r"^accounts_export_selected_\d{8}_\d{6}\.txt$")
 

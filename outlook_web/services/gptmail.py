@@ -7,8 +7,8 @@ import requests
 from outlook_web import config
 from outlook_web.repositories.settings import (
     get_temp_mail_api_base_url,
-    get_temp_mail_api_key as _get_temp_mail_api_key,
 )
+from outlook_web.repositories.settings import get_temp_mail_api_key as _get_temp_mail_api_key
 
 
 def get_temp_mail_api_key() -> str:

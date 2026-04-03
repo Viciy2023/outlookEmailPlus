@@ -19,9 +19,7 @@ class MailboxResolverTests(unittest.TestCase):
 
             db = get_db()
             db.execute("DELETE FROM accounts WHERE email LIKE '%@resolver.test'")
-            db.execute(
-                "DELETE FROM temp_email_messages WHERE email_address LIKE '%@resolver.test'"
-            )
+            db.execute("DELETE FROM temp_email_messages WHERE email_address LIKE '%@resolver.test'")
             db.execute("DELETE FROM temp_emails WHERE email LIKE '%@resolver.test'")
             db.commit()
 
