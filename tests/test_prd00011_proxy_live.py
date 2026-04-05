@@ -17,34 +17,11 @@ PRD-00011 代理支持补全 — 集成测试（基于 Flask TestClient，无需
 from __future__ import annotations
 
 import os
-
-# ──────────────────────────────────────────────────────────────────────────────
-# 应用初始化（复用项目标准 _import_app 辅助）
-# ──────────────────────────────────────────────────────────────────────────────
-import sys
-import tempfile
 import unittest
-from pathlib import Path
 
 import requests
 
-_TEMP_DIR = tempfile.TemporaryDirectory(prefix="prd00011-tests-")
-_DB_PATH = Path(_TEMP_DIR.name) / "test.db"
-
-os.environ.setdefault("SECRET_KEY", "test-secret-key-32bytes-minimum-0000000000000000")
-os.environ.setdefault("LOGIN_PASSWORD", "admin123")
-os.environ.setdefault("SCHEDULER_AUTOSTART", "false")
-os.environ["DATABASE_PATH"] = str(_DB_PATH)
-
-import importlib
-
-_module = importlib.import_module("web_outlook_app")
-_app = _module.app
-_app.config.update(
-    TESTING=True,
-    WTF_CSRF_ENABLED=False,
-    WTF_CSRF_CHECK_DEFAULT=False,
-)
+from tests._import_app import clear_login_attempts, import_web_app_module
 
 # 代理列表：通过环境变量 TEST_PROXY_URLS 传入（逗号分隔），格式：socks5://user:pass@host:port
 # 默认为空列表；不要在代码中硬编码真实代理凭据
@@ -61,15 +38,22 @@ _ENABLE_LIVE_TEST = os.environ.get("ENABLE_PROXY_LIVE_TEST", "").lower() in (
 
 def _login(client):
     """登录辅助（CSRF 已在测试配置中禁用）"""
-    resp = client.post("/login", json={"password": "admin123"})
+    resp = client.post("/login", json={"password": "testpass123"})
     return resp.status_code == 200 and resp.get_json().get("success")
 
 
 class TestPRD00011Settings(unittest.TestCase):
     """验收点 1：GET/PUT /api/settings 的 telegram_proxy_url 字段"""
 
+    @classmethod
+    def setUpClass(cls):
+        module = import_web_app_module()
+        cls.app = module.app
+
     def setUp(self):
-        self.client = _app.test_client()
+        with self.app.app_context():
+            clear_login_attempts()
+        self.client = self.app.test_client()
         ok = _login(self.client)
         if not ok:
             self.skipTest("登录失败，跳过测试")
@@ -121,8 +105,15 @@ class TestPRD00011Settings(unittest.TestCase):
 class TestPRD00011TelegramProxyNoToken(unittest.TestCase):
     """验收点 2（无 Bot Token 情况）：POST /api/settings/test-telegram-proxy"""
 
+    @classmethod
+    def setUpClass(cls):
+        module = import_web_app_module()
+        cls.app = module.app
+
     def setUp(self):
-        self.client = _app.test_client()
+        with self.app.app_context():
+            clear_login_attempts()
+        self.client = self.app.test_client()
         ok = _login(self.client)
         if not ok:
             self.skipTest("登录失败，跳过测试")
@@ -148,8 +139,15 @@ class TestPRD00011TelegramProxyNoToken(unittest.TestCase):
 class TestPRD00011ProxyEndpoint(unittest.TestCase):
     """验收点 2（路由是否存在）：POST /api/settings/test-telegram-proxy 接口路由已注册"""
 
+    @classmethod
+    def setUpClass(cls):
+        module = import_web_app_module()
+        cls.app = module.app
+
     def setUp(self):
-        self.client = _app.test_client()
+        with self.app.app_context():
+            clear_login_attempts()
+        self.client = self.app.test_client()
         ok = _login(self.client)
         if not ok:
             self.skipTest("登录失败，跳过测试")
