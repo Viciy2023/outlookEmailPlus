@@ -1738,6 +1738,13 @@ ${details}
                     const wtToken = document.getElementById('watchtowerToken');
                     if (wtUrl) wtUrl.value = (data.settings && data.settings.watchtower_url) || '';
                     if (wtToken) wtToken.value = (data.settings && data.settings.watchtower_token) || '';
+                    
+                    // 加载更新方式设置
+                    const updateMethod = (data.settings && data.settings.update_method) || 'watchtower';
+                    const updateMethodRadios = document.getElementsByName('updateMethod');
+                    updateMethodRadios.forEach(radio => {
+                        radio.checked = (radio.value === updateMethod);
+                    });
                 }
             } catch (error) {
                 console.error('loadSettings error:', error);
@@ -2085,6 +2092,12 @@ ${details}
             settings.watchtower_url = wtUrl;
             if (wtToken) {
                 settings.watchtower_token = wtToken;
+            }
+            
+            // 更新方式配置
+            const updateMethodRadio = document.querySelector('input[name="updateMethod"]:checked');
+            if (updateMethodRadio) {
+                settings.update_method = updateMethodRadio.value;
             }
 
             try {
@@ -3779,30 +3792,80 @@ ${details}
             btn.disabled = true;
             btn.textContent = '正在触发更新...';
 
+            // 获取更新方式（从设置中读取或默认为 watchtower）
+            let updateMethod = 'watchtower';
             try {
-                const res = await fetch('/api/system/trigger-update', {
+                const settingsRes = await fetch('/api/settings');
+                const settingsData = await settingsRes.json();
+                if (settingsData.success && settingsData.settings) {
+                    updateMethod = settingsData.settings.update_method || 'watchtower';
+                }
+            } catch (e) {
+                console.warn('Failed to load update method, using default (watchtower):', e);
+            }
+
+            try {
+                // 根据更新方式决定 timeout 和 URL
+                const timeout = updateMethod === 'docker_api' ? 120000 : 10000;  // Docker API 模式 120s, Watchtower 模式 10s
+                const url = `/api/system/trigger-update?method=${updateMethod}`;
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: { 'X-CSRFToken': getCSRFToken() },
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
+                
                 const data = await res.json();
                 if (data.success) {
-                    btn.textContent = '等待容器重启...';
-                    await waitForRestart();
+                    if (updateMethod === 'docker_api') {
+                        // Docker API 模式：显示详细步骤信息
+                        if (data.message && data.message.includes('已是最新')) {
+                            showToast('镜像已是最新，无需更新', 'info', 5000);
+                            btn.disabled = false;
+                            btn.textContent = '立即更新';
+                        } else {
+                            btn.textContent = '容器更新完成，刷新页面...';
+                            showToast('Docker API 自更新完成，正在刷新页面...', 'success', 3000);
+                            setTimeout(() => location.reload(), 3000);
+                        }
+                    } else {
+                        // Watchtower 模式：等待容器重启
+                        btn.textContent = '等待容器重启...';
+                        await waitForRestart();
+                    }
                 } else {
                     const msg = data.message || '未知错误';
                     // 区分常见错误场景，给出友好提示
-                    if (msg.includes('WATCHTOWER_HTTP_API_TOKEN') || (msg.includes('未配置') && res.status === 500)) {
-                        showToast('一键更新需要配置 Watchtower 服务（仅 Docker 部署支持）。请在 .env 中设置 WATCHTOWER_HTTP_API_TOKEN，并使用含 Watchtower 的 docker-compose 部署方式', 'warning', 10000);
-                    } else if (msg.includes('无法连接') || msg.includes('Watchtower')) {
-                        showToast('无法连接 Watchtower 服务，请确认已使用 docker-compose 方式部署，且 watchtower 容器正常运行', 'warning', 8000);
+                    if (updateMethod === 'docker_api') {
+                        if (msg.includes('未启用') || msg.includes('DOCKER_SELF_UPDATE_ALLOW')) {
+                            showToast('Docker API 自更新功能未启用。请在 .env 中设置 DOCKER_SELF_UPDATE_ALLOW=true，并在 docker-compose.yml 中挂载 docker.sock', 'warning', 10000);
+                        } else if (msg.includes('docker.sock') || msg.includes('无法连接')) {
+                            showToast('无法访问 Docker API。请确认已在 docker-compose.yml 中挂载 /var/run/docker.sock', 'warning', 8000);
+                        } else {
+                            showToast('Docker API 更新失败：' + msg, 'error', 8000);
+                        }
                     } else {
-                        showToast('更新失败：' + msg, 'error');
+                        if (msg.includes('WATCHTOWER_HTTP_API_TOKEN') || (msg.includes('未配置') && res.status === 500)) {
+                            showToast('一键更新需要配置 Watchtower 服务（仅 Docker 部署支持）。请在 .env 中设置 WATCHTOWER_HTTP_API_TOKEN，并使用含 Watchtower 的 docker-compose 部署方式', 'warning', 10000);
+                        } else if (msg.includes('无法连接') || msg.includes('Watchtower')) {
+                            showToast('无法连接 Watchtower 服务，请确认已使用 docker-compose 方式部署，且 watchtower 容器正常运行', 'warning', 8000);
+                        } else {
+                            showToast('更新失败：' + msg, 'error');
+                        }
                     }
                     btn.disabled = false;
                     btn.textContent = '立即更新';
                 }
             } catch (e) {
-                showToast('更新请求失败，请检查网络连接', 'error');
+                if (e.name === 'AbortError') {
+                    showToast('更新请求超时，请检查配置和网络连接', 'error', 8000);
+                } else {
+                    showToast('更新请求失败，请检查网络连接', 'error');
+                }
                 btn.disabled = false;
                 btn.textContent = '立即更新';
             }

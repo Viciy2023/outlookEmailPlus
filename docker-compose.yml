@@ -30,13 +30,23 @@ services:
       GPTMAIL_BASE_URL: "https://mail.chatgpt.org.uk"
       GPTMAIL_API_KEY: "gpt-test"
 
-      # 一键更新配置
+      # 一键更新配置（应用读取环境变量作为 fallback，优先使用数据库配置）
       WATCHTOWER_HTTP_API_TOKEN: "${WATCHTOWER_HTTP_API_TOKEN:-}"
+      
+      # Docker API 自更新配置（可选，高级功能）
+      # ⚠️ 警告：启用后容器可通过 Docker API 控制宿主机其他容器，存在安全风险
+      # 仅在需要使用 Docker API 自更新功能时启用（默认 false）
+      DOCKER_SELF_UPDATE_ALLOW: "${DOCKER_SELF_UPDATE_ALLOW:-false}"
 
     volumes:
       # 挂载本地真实数据库目录（确保本地 Flask 服务已停止，避免 SQLite 锁冲突）
       - ./data:/app/data
       - ./.runtime:/app/.runtime
+      
+      # Docker socket 挂载（可选，仅用于 Docker API 自更新功能）
+      # ⚠️ 警告：挂载 docker.sock 会授予容器完全的 Docker API 访问权限，请谨慎使用
+      # 如需使用 Docker API 自更新功能，请取消下面一行的注释
+      # - /var/run/docker.sock:/var/run/docker.sock
 
     restart: unless-stopped
 
@@ -61,7 +71,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN}
+      # Watchtower HTTP API Token（必须配置，否则容器启动失败）
+      # 如果 .env 中未设置 WATCHTOWER_HTTP_API_TOKEN，使用默认的安全随机值
+      # 生产环境请在 .env 中设置强随机 Token
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN:-default-watchtower-token-please-change-in-production}
       - WATCHTOWER_HTTP_API_UPDATE=true
       - WATCHTOWER_CLEANUP=true
       # 禁用定时轮询，仅通过 HTTP API 触发

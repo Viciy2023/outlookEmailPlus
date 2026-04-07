@@ -400,18 +400,50 @@ def api_version_check() -> Any:
 
 @login_required
 def api_trigger_update() -> Any:
-    """触发 Watchtower 一键更新（调用 Watchtower HTTP API）
+    """触发容器更新
 
-    优先从数据库读取 watchtower_url / watchtower_token，
-    如未配置则回退到环境变量 WATCHTOWER_API_URL / WATCHTOWER_HTTP_API_TOKEN。
+    支持两种更新方式（通过 request 参数 method 指定）：
+    1. watchtower (默认): 调用 Watchtower HTTP API
+    2. docker_api: 使用 Docker API 自更新
+
+    优先从数据库读取配置,如未配置则回退到环境变量。
+
+    请求参数：
+        method: str (可选) - 更新方式 (watchtower / docker_api)
+        remove_old: bool (可选) - Docker API 模式下是否删除旧容器 (默认 False)
     """
+    import os
+    import urllib.error
+    import urllib.request
+    from flask import request
+
+    from outlook_web.security.crypto import decrypt_data, is_encrypted
+
+    # 获取更新方式参数
+    update_method = request.args.get("method", "watchtower").lower()
+
+    if update_method == "watchtower":
+        return _trigger_watchtower_update()
+    elif update_method == "docker_api":
+        return _trigger_docker_api_update()
+    else:
+        return jsonify(
+            {
+                "success": False,
+                "message": f"不支持的更新方式: {update_method} (支持: watchtower / docker_api)",
+            }
+        ), 400
+
+
+def _trigger_watchtower_update() -> Any:
+    """通过 Watchtower HTTP API 触发更新"""
     import os
     import urllib.error
     import urllib.request
 
     from outlook_web.security.crypto import decrypt_data, is_encrypted
 
-    # 优先从数据库读取，回退到环境变量
+    # 优先从数据库读取,回退到环境变量
     wt_url_raw = settings_repo.get_setting("watchtower_url", "")
     wt_token_raw = settings_repo.get_setting("watchtower_token", "")
 
@@ -432,7 +464,7 @@ def api_trigger_update() -> Any:
         return jsonify(
             {
                 "success": False,
-                "message": "Watchtower Token 未配置，请在系统设置 → 一键更新中配置",
+                "message": "Watchtower Token 未配置,请在系统设置 → 一键更新中配置",
             }
         ), 500
 
@@ -449,7 +481,7 @@ def api_trigger_update() -> Any:
         with urllib.request.urlopen(req, timeout=10) as resp:
             status = resp.status
         if status == 200:
-            return jsonify({"success": True, "message": "更新触发成功，容器即将重启"})
+            return jsonify({"success": True, "message": "更新触发成功,容器即将重启"})
         else:
             return jsonify(
                 {"success": False, "message": f"Watchtower 返回状态码 {status}"}
@@ -463,6 +495,237 @@ def api_trigger_update() -> Any:
         ), 503
     except Exception as e:
         return jsonify({"success": False, "message": f"触发更新失败: {str(e)}"}), 500
+
+
+def _trigger_docker_api_update() -> Any:
+    """通过 Docker API 触发容器自更新"""
+    from flask import request
+    from outlook_web.services import docker_update
+    from outlook_web.models import AuditLog
+
+    # 检查是否启用 Docker API 自更新
+    if not docker_update.is_docker_api_enabled():
+        return jsonify(
+            {
+                "success": False,
+                "message": "Docker API 自更新功能未启用 (需设置环境变量 DOCKER_SELF_UPDATE_ALLOW=true)",
+            }
+        ), 403
+
+    # 检查 docker.sock 可访问性
+    socket_ok, socket_msg = docker_update.check_docker_socket()
+    if not socket_ok:
+        return jsonify(
+            {
+                "success": False,
+                "message": socket_msg,
+            }
+        ), 503
+
+    # 获取参数
+    remove_old = request.args.get("remove_old", "false").lower() == "true"
+
+    try:
+        # 执行自更新（异步后台任务）
+        # 注意：这里直接调用会导致当前进程被终止，需要考虑异步执行
+        result = docker_update.self_update(remove_old=remove_old)
+
+        # 记录审计日志
+        from flask import session
+
+        AuditLog.create_log(
+            action="trigger_docker_api_update",
+            resource_type="system",
+            resource_id="docker_update",
+            details={
+                "method": "docker_api",
+                "remove_old": remove_old,
+                "result": result,
+            },
+            username=session.get("username", "unknown"),
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Docker API 自更新失败: {str(e)}", exc_info=True)
+        return jsonify(
+            {
+                "success": False,
+                "message": f"Docker API 自更新失败: {str(e)}",
+            }
+        ), 500
+
+
+@login_required
+def api_deployment_info() -> Any:
+    """获取当前容器的部署信息（用于一键更新功能提示）
+
+    检测内容：
+    - 镜像名称和标签
+    - 是否为本地构建（检查镜像名中是否包含 'local' / 'dev' / 没有 registry 前缀）
+    - 是否使用固定版本标签（非 latest）
+    - Watchtower 连通性
+
+    返回示例：
+    {
+        "success": true,
+        "deployment": {
+            "image": "guangshanshui/outlook-email-plus:latest",
+            "is_local_build": false,
+            "uses_fixed_tag": false,
+            "update_method": "watchtower",
+            "watchtower_reachable": true,
+            "can_auto_update": true,
+            "warnings": []
+        }
+    }
+    """
+    import os
+    import socket
+
+    deployment_info = {
+        "image": "unknown",
+        "is_local_build": False,
+        "uses_fixed_tag": False,
+        "update_method": "watchtower",
+        "watchtower_reachable": None,
+        "can_auto_update": False,
+        "warnings": [],
+    }
+
+    # 1. 检测镜像信息（通过环境变量或容器主机名）
+    # Docker 容器通常会设置 HOSTNAME 为容器 ID
+    hostname = os.getenv("HOSTNAME", "")
+
+    # 尝试通过常见环境变量获取镜像信息（需要在 docker-compose 中设置）
+    image_name = os.getenv("DOCKER_IMAGE", "")
+
+    # 如果没有 DOCKER_IMAGE 环境变量，尝试读取 /proc/self/cgroup（仅 Linux）
+    if not image_name:
+        try:
+            with open("/proc/self/cgroup", "r") as f:
+                cgroup_content = f.read()
+                # 简单判断：如果包含 docker 关键字，说明在容器内运行
+                if (
+                    "docker" in cgroup_content.lower()
+                    or "containerd" in cgroup_content.lower()
+                ):
+                    # 无法直接从 cgroup 读取镜像名，使用默认值
+                    image_name = "outlook-email-plus:unknown"
+        except Exception:
+            pass
+
+    # 2. 判断是否为本地构建
+    is_local = False
+    if image_name:
+        deployment_info["image"] = image_name
+        lower_image = image_name.lower()
+        # 本地构建特征：包含 dev/local 关键字，或者没有 registry 前缀
+        if any(keyword in lower_image for keyword in ["dev", "local", "test"]):
+            is_local = True
+        elif "/" not in image_name or image_name.startswith("outlook-email"):
+            # 没有 registry 前缀（如 "outlook-email-dev:latest"），视为本地构建
+            is_local = True
+
+    deployment_info["is_local_build"] = is_local
+
+    # 3. 判断是否使用固定标签
+    uses_fixed_tag = False
+    if ":" in image_name:
+        tag = image_name.split(":")[-1]
+        if tag not in ("latest", "main", "master", "dev"):
+            uses_fixed_tag = True
+
+    deployment_info["uses_fixed_tag"] = uses_fixed_tag
+
+    # 4. 检测 Watchtower 连通性（使用已有配置）
+    from outlook_web.security.crypto import decrypt_data, is_encrypted
+
+    wt_url_raw = settings_repo.get_setting("watchtower_url", "")
+    wt_token_raw = settings_repo.get_setting("watchtower_token", "")
+
+    watchtower_url = (
+        wt_url_raw.strip()
+        if wt_url_raw
+        else os.getenv("WATCHTOWER_API_URL", "http://watchtower:8080")
+    )
+    watchtower_token = ""
+    if wt_token_raw:
+        watchtower_token = (
+            decrypt_data(wt_token_raw) if is_encrypted(wt_token_raw) else wt_token_raw
+        )
+    if not watchtower_token:
+        watchtower_token = os.getenv("WATCHTOWER_HTTP_API_TOKEN", "")
+
+    watchtower_reachable = False
+    if watchtower_token and watchtower_url:
+        try:
+            import urllib.request
+
+            test_req = urllib.request.Request(
+                f"{watchtower_url}/v1/update",
+                method="GET",
+                headers={"Authorization": f"Bearer {watchtower_token}"},
+            )
+            with urllib.request.urlopen(test_req, timeout=3) as resp:
+                watchtower_reachable = resp.status == 200
+        except Exception:
+            watchtower_reachable = False
+
+    deployment_info["watchtower_reachable"] = watchtower_reachable
+
+    # 5. 生成警告信息
+    warnings = []
+
+    if is_local:
+        warnings.append(
+            {
+                "type": "local_build",
+                "severity": "warning",
+                "message": "当前为本地构建模式，一键更新将无法工作",
+                "message_en": "Local build detected. Auto-update is not available",
+                "suggestion": "请使用远程镜像部署（如 guangshanshui/outlook-email-plus:latest）以支持一键更新",
+                "suggestion_en": "Please use remote image (e.g., guangshanshui/outlook-email-plus:latest) for auto-update support",
+            }
+        )
+
+    if uses_fixed_tag and not is_local:
+        warnings.append(
+            {
+                "type": "fixed_tag",
+                "severity": "info",
+                "message": "当前使用固定版本标签，一键更新需手动修改 docker-compose.yml 中的版本号",
+                "message_en": "Fixed version tag detected. Auto-update requires manual tag change in docker-compose.yml",
+                "suggestion": "建议使用 latest 标签以支持自动更新",
+                "suggestion_en": "Consider using 'latest' tag for auto-update support",
+            }
+        )
+
+    if not watchtower_reachable and not is_local:
+        warnings.append(
+            {
+                "type": "watchtower_unreachable",
+                "severity": "error",
+                "message": "无法连接 Watchtower 服务",
+                "message_en": "Cannot connect to Watchtower service",
+                "suggestion": "请确保 Watchtower 容器正常运行，并在系统设置中配置正确的 API 地址和 Token",
+                "suggestion_en": "Please ensure Watchtower container is running and API credentials are configured correctly",
+            }
+        )
+
+    deployment_info["warnings"] = warnings
+
+    # 6. 判断是否可以使用一键更新
+    can_auto_update = (
+        not is_local
+        and watchtower_reachable
+        and (not uses_fixed_tag or image_name.endswith(":latest"))
+    )
+
+    deployment_info["can_auto_update"] = can_auto_update
+
+    return jsonify({"success": True, "deployment": deployment_info})
 
 
 @login_required

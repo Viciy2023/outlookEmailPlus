@@ -89,7 +89,9 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         # ProxyFix 中间件（仅在配置启用时应用）
         # 注意：启用前必须配置 TRUSTED_PROXIES 环境变量
         if config.get_proxy_fix_enabled():
-            app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+            app.wsgi_app = ProxyFix(
+                app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+            )
 
         # DB teardown（请求结束释放连接）
         register_db(app)
@@ -99,7 +101,11 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         import sys
 
         _log_handler = logging.StreamHandler(sys.stderr)
-        _log_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s", datefmt="%H:%M:%S"))
+        _log_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(name)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
+            )
+        )
         _ow_logger = logging.getLogger("outlook_web")
         if not _ow_logger.handlers:
             _ow_logger.addHandler(_log_handler)
@@ -114,6 +120,33 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         app.register_error_handler(HTTPException, handle_http_exception)
         app.register_error_handler(Exception, handle_exception)
 
+        # 静态文件缓存控制（防止浏览器缓存旧版本 JS/CSS）
+        @app.after_request
+        def set_static_cache_control(response):
+            """
+            为静态文件设置合理的缓存策略：
+            - 带版本号参数的静态文件可以长期缓存（1年）
+            - 没有版本号的静态文件使用短期缓存（1小时）+ must-revalidate
+            """
+            from flask import request
+
+            if request.path.startswith("/static/"):
+                # 检查是否带版本号参数（?v=x.x.x）
+                has_version_param = "v=" in (request.query_string or b"").decode(
+                    "utf-8", errors="ignore"
+                )
+                if has_version_param:
+                    # 带版本号：可以长期缓存（immutable）
+                    response.headers["Cache-Control"] = (
+                        "public, max-age=31536000, immutable"
+                    )
+                else:
+                    # 不带版本号：短期缓存 + 必须重新验证
+                    response.headers["Cache-Control"] = (
+                        "public, max-age=3600, must-revalidate"
+                    )
+            return response
+
         # Blueprint 路由注册（URL 不变）
         app.register_blueprint(pages.create_blueprint(csrf_exempt=csrf_exempt))
         app.register_blueprint(groups.create_blueprint())
@@ -126,7 +159,9 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         app.register_blueprint(system.create_blueprint())
         app.register_blueprint(audit.create_blueprint())
         app.register_blueprint(external_pool.create_blueprint(csrf_exempt=csrf_exempt))
-        app.register_blueprint(external_temp_emails.create_blueprint(csrf_exempt=csrf_exempt))
+        app.register_blueprint(
+            external_temp_emails.create_blueprint(csrf_exempt=csrf_exempt)
+        )
 
         # 打印初始化信息
         print("=" * 60)
@@ -143,11 +178,15 @@ def create_app(*, autostart_scheduler: Optional[bool] = None):
         from outlook_web.services import scheduler as scheduler_service
 
         if scheduler_service.should_autostart_scheduler():
-            scheduler_service.init_scheduler(_APP_INSTANCE, graph_service.test_refresh_token_with_rotation)
+            scheduler_service.init_scheduler(
+                _APP_INSTANCE, graph_service.test_refresh_token_with_rotation
+            )
     elif autostart_scheduler:
         from outlook_web.services import graph as graph_service
         from outlook_web.services import scheduler as scheduler_service
 
-        scheduler_service.init_scheduler(_APP_INSTANCE, graph_service.test_refresh_token_with_rotation)
+        scheduler_service.init_scheduler(
+            _APP_INSTANCE, graph_service.test_refresh_token_with_rotation
+        )
 
     return _APP_INSTANCE

@@ -828,28 +828,96 @@
                         <!-- Watchtower 一键更新设置 -->
                         <div class="card">
                             <div class="card-header">
-                                <div class="card-title">🔄 一键更新 (Watchtower)</div>
+                                <div class="card-title">🔄 一键更新配置</div>
                             </div>
                             <div class="card-body" style="padding: 1.5rem;">
+                                <!-- 更新方式选择 -->
                                 <div class="form-group">
-                                    <label class="form-label">Watchtower API 地址 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">（Docker 内网地址）</span></label>
-                                    <input type="text" class="form-input" id="watchtowerUrl" placeholder="http://watchtower:8080" style="max-width: 400px;">
-                                    <div class="form-hint">默认 http://watchtower:8080，仅 Docker 部署模式下可用</div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Watchtower API Token</label>
-                                    <input type="password" class="form-input" id="watchtowerToken" placeholder="输入 Watchtower HTTP API Token" autocomplete="off" style="max-width: 400px;">
-                                    <div class="form-hint">与 docker-compose 中 WATCHTOWER_HTTP_API_TOKEN 保持一致。留空则读取环境变量。</div>
-                                </div>
-                                <div class="form-group" style="margin-top: 0.5rem;">
-                                    <div style="display: flex; align-items: center; gap: 8px;">
-                                        <button class="btn btn-outline" onclick="testWatchtower()" id="btnTestWatchtower" style="font-size: 0.85rem;">🔗 测试连通性</button>
-                                        <span id="watchtowerTestResult" style="font-size: 0.85rem;"></span>
+                                    <label class="form-label">更新方式</label>
+                                    <div style="display: flex; gap: 20px; margin-top: 8px;">
+                                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                            <input type="radio" name="updateMethod" value="watchtower" checked>
+                                            <span>Watchtower（推荐）</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                            <input type="radio" name="updateMethod" value="docker_api">
+                                            <span>Docker API（高级）</span>
+                                        </label>
                                     </div>
-                                    <div class="form-hint">验证 Watchtower 服务是否可达且 Token 正确</div>
+                                    <div class="form-hint">
+                                        <strong>Watchtower:</strong> 使用外部 Watchtower 容器管理更新（推荐，更安全）<br>
+                                        <strong>Docker API:</strong> 容器直接通过 Docker API 自更新（需挂载 docker.sock，存在安全风险）
+                                    </div>
+                                </div>
+                                
+                                <!-- Docker API 安全警告 -->
+                                <div class="form-hint" id="dockerApiWarning" style="background: var(--bg-danger, #f8d7da); padding: 12px; border-radius: 6px; margin-bottom: 1rem; border-left: 3px solid var(--danger, #dc3545); display: none;">
+                                    <strong>⚠️ Docker API 模式安全警告：</strong><br>
+                                    1. 需要在 docker-compose.yml 中挂载 <code>/var/run/docker.sock</code><br>
+                                    2. 需要在 .env 中设置 <code>DOCKER_SELF_UPDATE_ALLOW=true</code><br>
+                                    3. ⚠️ 此操作授予容器完全的 Docker API 访问权限，请谨慎使用<br>
+                                    4. 建议仅在测试环境或可信网络中启用
+                                </div>
+                                
+                                <!-- Watchtower 配置区域 -->
+                                <div id="watchtowerConfigArea">
+                                    <!-- 首次配置引导 -->
+                                    <div class="form-hint" style="background: var(--bg-accent, #fff3cd); padding: 12px; border-radius: 6px; margin-bottom: 1rem; border-left: 3px solid var(--warning, #ffc107);">
+                                        <strong>📌 首次配置指南：</strong><br>
+                                        1. 在 <code>.env</code> 文件中设置 <code>WATCHTOWER_HTTP_API_TOKEN</code>（使用 <code>python -c "import secrets; print(secrets.token_hex(32))"</code> 生成）<br>
+                                        2. 使用 <code>docker-compose up -d</code> 重启容器以应用 Token<br>
+                                        3. 在下方配置相同的 Token 并保存设置<br>
+                                        4. 点击"测试连通性"验证配置是否正确
+                                    </div>
+                                    <!-- 部署信息警告容器（动态加载） -->
+                                    <div id="deploymentWarnings" style="margin-bottom: 1rem;"></div>
+                                    <div class="form-group">
+                                        <label class="form-label">Watchtower API 地址 <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">（Docker 内网地址）</span></label>
+                                        <input type="text" class="form-input" id="watchtowerUrl" placeholder="http://watchtower:8080" style="max-width: 400px;">
+                                        <div class="form-hint">默认 http://watchtower:8080，仅 Docker 部署模式下可用</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Watchtower API Token</label>
+                                        <input type="password" class="form-input" id="watchtowerToken" placeholder="输入 Watchtower HTTP API Token" autocomplete="off" style="max-width: 400px;">
+                                        <div class="form-hint">与 docker-compose 中 WATCHTOWER_HTTP_API_TOKEN 保持一致。留空则读取环境变量。</div>
+                                    </div>
+                                    <div class="form-group" style="margin-top: 0.5rem;">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <button class="btn btn-outline" onclick="testWatchtower()" id="btnTestWatchtower" style="font-size: 0.85rem;">🔗 测试连通性</button>
+                                            <span id="watchtowerTestResult" style="font-size: 0.85rem;"></span>
+                                        </div>
+                                        <div class="form-hint">验证 Watchtower 服务是否可达且 Token 正确</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        
+                        <script>
+                            // 切换更新方式时显示/隐藏相关配置区域
+                            document.addEventListener('DOMContentLoaded', function() {
+                                const updateMethodRadios = document.getElementsByName('updateMethod');
+                                const watchtowerConfigArea = document.getElementById('watchtowerConfigArea');
+                                const dockerApiWarning = document.getElementById('dockerApiWarning');
+                                
+                                function toggleUpdateMethodConfig() {
+                                    const selectedMethod = document.querySelector('input[name="updateMethod"]:checked')?.value;
+                                    if (selectedMethod === 'docker_api') {
+                                        watchtowerConfigArea.style.display = 'none';
+                                        dockerApiWarning.style.display = 'block';
+                                    } else {
+                                        watchtowerConfigArea.style.display = 'block';
+                                        dockerApiWarning.style.display = 'none';
+                                    }
+                                }
+                                
+                                updateMethodRadios.forEach(radio => {
+                                    radio.addEventListener('change', toggleUpdateMethodConfig);
+                                });
+                                
+                                // 初始化时调用一次
+                                toggleUpdateMethodConfig();
+                            });
+                        </script>
                     </div>
 
                 </div>

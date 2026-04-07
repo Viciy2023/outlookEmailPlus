@@ -347,6 +347,12 @@ def api_get_settings() -> Any:
     else:
         safe_settings["watchtower_token"] = ""
 
+    # 更新方式配置（watchtower / docker_api）
+    update_method = all_settings.get("update_method", "watchtower")
+    safe_settings["update_method"] = (
+        update_method if update_method in ["watchtower", "docker_api"] else "watchtower"
+    )
+
     # 读取 ui_layout_v2 布局状态
     ui_layout = settings_repo.get_ui_layout_v2()
     if not ui_layout or ui_layout.get("version") != 2:
@@ -1002,6 +1008,17 @@ def api_update_settings() -> Any:
         else:
             # 脱敏占位符（****xxx），跳过不覆盖
             updated.append("Watchtower Token（未变更）")
+
+    # 更新方式配置（watchtower / docker_api）
+    if "update_method" in data:
+        method = str(data["update_method"]).strip().lower()
+        if method in ["watchtower", "docker_api"]:
+            queue_setting_update("update_method", method)
+            updated.append("更新方式")
+        else:
+            errors.append(
+                f"不支持的更新方式: {method} （仅支持 watchtower / docker_api）"
+            )
 
     # 更新 ui_layout_v2 布局状态
     if "ui_layout_v2" in data:

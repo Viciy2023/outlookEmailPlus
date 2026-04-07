@@ -54,6 +54,11 @@ def create_blueprint() -> Blueprint:
         methods=["POST"],
     )
     bp.add_url_rule(
+        "/api/system/deployment-info",
+        view_func=system_controller.api_deployment_info,
+        methods=["GET"],
+    )
+    bp.add_url_rule(
         "/api/system/test-watchtower",
         view_func=system_controller.api_test_watchtower,
         methods=["POST"],
