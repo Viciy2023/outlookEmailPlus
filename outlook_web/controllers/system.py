@@ -498,8 +498,14 @@ def _trigger_watchtower_update() -> Any:
 
 
 def _trigger_docker_api_update() -> Any:
-    """通过 Docker API 触发容器自更新"""
-    from flask import request
+    """通过 Docker API 触发容器自更新（异步后台执行）
+
+    使用 daemon 线程在后台执行自更新流程，先返回响应给客户端，
+    避免自更新过程中旧容器被停止导致响应无法到达客户端。
+    前端通过 waitForRestart() 轮询 /healthz 等待新容器启动。
+    """
+    import threading
+    from flask import request, session
     from outlook_web.services import docker_update
     from outlook_web.models import AuditLog
 
@@ -524,37 +530,48 @@ def _trigger_docker_api_update() -> Any:
 
     # 获取参数
     remove_old = request.args.get("remove_old", "false").lower() == "true"
+    username = session.get("username", "unknown")
 
-    try:
-        # 执行自更新（异步后台任务）
-        # 注意：这里直接调用会导致当前进程被终止，需要考虑异步执行
-        result = docker_update.self_update(remove_old=remove_old)
+    def _async_self_update():
+        """后台线程：执行自更新并记录审计日志"""
+        try:
+            result = docker_update.self_update(remove_old=remove_old)
+            AuditLog.create_log(
+                action="trigger_docker_api_update",
+                resource_type="system",
+                resource_id="docker_update",
+                details={
+                    "method": "docker_api",
+                    "remove_old": remove_old,
+                    "result": result,
+                },
+                username=username,
+            )
+            logger.info(f"Docker API 自更新完成: {result.get('message', '')}")
+        except Exception as e:
+            logger.error(f"Docker API 自更新后台执行失败: {str(e)}", exc_info=True)
+            AuditLog.create_log(
+                action="trigger_docker_api_update",
+                resource_type="system",
+                resource_id="docker_update",
+                details={
+                    "method": "docker_api",
+                    "remove_old": remove_old,
+                    "error": str(e),
+                },
+                username=username,
+            )
 
-        # 记录审计日志
-        from flask import session
+    # 在后台线程中启动自更新，立即返回响应
+    update_thread = threading.Thread(target=_async_self_update, daemon=True)
+    update_thread.start()
 
-        AuditLog.create_log(
-            action="trigger_docker_api_update",
-            resource_type="system",
-            resource_id="docker_update",
-            details={
-                "method": "docker_api",
-                "remove_old": remove_old,
-                "result": result,
-            },
-            username=session.get("username", "unknown"),
-        )
-
-        return jsonify(result)
-
-    except Exception as e:
-        logger.error(f"Docker API 自更新失败: {str(e)}", exc_info=True)
-        return jsonify(
-            {
-                "success": False,
-                "message": f"Docker API 自更新失败: {str(e)}",
-            }
-        ), 500
+    return jsonify(
+        {
+            "success": True,
+            "message": "Docker API 自更新已启动，容器即将重启",
+        }
+    )
 
 
 @login_required
@@ -717,13 +734,25 @@ def api_deployment_info() -> Any:
     deployment_info["warnings"] = warnings
 
     # 6. 判断是否可以使用一键更新
+    # 支持两种模式：Watchtower 连通 或 Docker API 已启用且 socket 可用
+    docker_api_available = False
+    try:
+        from outlook_web.services import docker_update
+
+        if docker_update.is_docker_api_enabled():
+            socket_ok, _ = docker_update.check_docker_socket()
+            docker_api_available = socket_ok
+    except Exception:
+        pass
+
     can_auto_update = (
         not is_local
-        and watchtower_reachable
         and (not uses_fixed_tag or image_name.endswith(":latest"))
+        and (watchtower_reachable or docker_api_available)
     )
 
     deployment_info["can_auto_update"] = can_auto_update
+    deployment_info["docker_api_available"] = docker_api_available
 
     return jsonify({"success": True, "deployment": deployment_info})
 

@@ -1,6 +1,8 @@
 version: "3.9"
 
-# 热更新模拟测试：使用 v1.12.0 镜像启动，验证 Watchtower 更新到 v1.12.1
+# 热更新模拟测试：使用 latest 镜像启动，验证 Watchtower 更新到最新版本
+# 使用方式：docker-compose -f docker-compose.hotupdate-test.yml up -d
+# 注意：此文件仅供开发测试使用，请勿用于生产环境
 
 services:
   app:
@@ -9,12 +11,12 @@ services:
     ports:
       - "5002:5000"
     environment:
-      SECRET_KEY: "980bb366e44920382e395a3116de578b5faa5b246c4e257af5caad3888f25106"
+      SECRET_KEY: "${SECRET_KEY:-please-change-this-secret-key-for-testing}"
       LOGIN_PASSWORD: "admin123"
       FLASK_ENV: "production"
       SCHEDULER_AUTOSTART: "true"
       DATABASE_PATH: "/app/data/outlook_accounts.db"
-      WATCHTOWER_HTTP_API_TOKEN: "test-hotupdate-token-123"
+      WATCHTOWER_HTTP_API_TOKEN: "${WATCHTOWER_HTTP_API_TOKEN:-test-hotupdate-token}"
     volumes:
       - ./data:/app/data
     restart: unless-stopped
@@ -37,7 +39,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - WATCHTOWER_HTTP_API_TOKEN=test-hotupdate-token-123
+      - WATCHTOWER_HTTP_API_TOKEN=${WATCHTOWER_HTTP_API_TOKEN:-test-hotupdate-token}
       - WATCHTOWER_HTTP_API_UPDATE=true
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_HTTP_API_PERIODIC_POLLS=false

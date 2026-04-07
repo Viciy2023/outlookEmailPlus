@@ -41,7 +41,13 @@ OutlookMail Plus 是一款面向个人与团队的注册邮箱管理器。
 
 重点包括：
 
-- 当前稳定版本：`v1.11.0`
+- 当前稳定版本：`v1.12.0`
+
+**一键更新**
+- 支持两种更新方式：Watchtower（推荐）和 Docker API 自更新（高级）
+- 自动检测 GitHub 最新版本，界面弹出更新提示
+- 完整的部署信息检测：镜像标签、本地构建、Watchtower 连通性等
+- 修复了浏览器缓存旧 JS 文件的问题
 
 **邮箱池增强**
 - 项目隔离领取策略（PR#27）：`claim-random` 支持传入 `project_key`，同一 `caller_id + project_key` 下已使用的账号不重复领取（DB v17）
@@ -130,8 +136,15 @@ services:
       ALLOW_LOGIN_PASSWORD_CHANGE: "false"
       SCHEDULER_AUTOSTART: "true"
       WATCHTOWER_HTTP_API_TOKEN: "your-watchtower-token"  # 与下方 watchtower 服务保持一致
+      # Docker API 自更新（可选，高级功能）
+      # ⚠️ 启用后容器可通过 Docker API 控制宿主机其他容器，存在安全风险
+      # DOCKER_SELF_UPDATE_ALLOW: "false"
     volumes:
       - ./data:/app/data
+      # Docker socket 挂载（可选，仅用于 Docker API 自更新功能）
+      # ⚠️ 挂载 docker.sock 会授予容器完全的 Docker API 访问权限，请谨慎使用
+      # 如需使用 Docker API 自更新功能，请取消下面一行的注释
+      # - /var/run/docker.sock:/var/run/docker.sock
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
@@ -166,6 +179,12 @@ networks:
 - `WATCHTOWER_HTTP_API_TOKEN` 两处填写相同的随机字符串，用于一键更新鉴权
 - 配置好后，当有新版本时系统界面会自动弹出更新提示，点击"立即更新"即可完成升级
 - 一键更新功能**仅在 docker-compose 部署方式下有效**；`docker run` 单容器模式不支持
+
+**更新方式**：默认使用 Watchtower（推荐）。如需使用 Docker API 自更新（无需 Watchtower），需在 `docker-compose.yml` 中：
+1. 取消 `DOCKER_SELF_UPDATE_ALLOW` 注释并设为 `"true"`
+2. 取消 docker.sock 挂载注释
+3. 在设置页选择"更新方式"为"Docker API"
+4. ⚠️ 请充分了解安全风险后再启用
 
 ### 本地运行
 
@@ -203,6 +222,19 @@ python -m unittest discover -s tests -v
   GPTMail 服务地址
 - `GPTMAIL_API_KEY`
   GPTMail API Key，用于临时邮箱能力
+
+### 一键更新相关
+
+- `WATCHTOWER_HTTP_API_TOKEN`
+  Watchtower API 鉴权令牌，与 watchtower 容器配置保持一致
+- `WATCHTOWER_API_URL`
+  Watchtower API 地址，默认 `http://watchtower:8080`（Docker 内部网络）
+- `DOCKER_SELF_UPDATE_ALLOW`
+  是否启用 Docker API 自更新功能，默认 `false`。⚠️ 启用后容器可访问 Docker API，存在安全风险
+- `DOCKER_IMAGE`
+  当前容器镜像名（可选，用于部署信息检测）
+
+> **安全提示**：Docker API 自更新需要挂载 `/var/run/docker.sock`，这会授予容器完全的 Docker API 访问权限。生产环境建议使用 Watchtower 方式。
 
 ## 通知能力说明
 
