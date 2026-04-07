@@ -67,7 +67,7 @@ outlook-email-plus:*                     → True（正确识别为本地）
 **文档产出**：
 - `docs/DEV/manual-acceptance-checklist.md`：人工验收清单（4 个测试用例 + 验收标准 + 快速测试脚本）
 
-**待验收项**：
+**待验收项（当时）**：
 - [ ] 负向用例1：本地构建镜像触发更新被拦截
 - [ ] 负向用例2：本地构建伪装官方名触发更新被拦截
 - [ ] 正向用例3：官方远程镜像成功触发更新流程
@@ -98,7 +98,81 @@ outlook-email-plus:*                     → True（正确识别为本地）
    - 错误：`Client.Timeout exceeded while awaiting headers`（auth.docker.io token 请求超时）
    - 影响：无法在当前环境完成“远程镜像 RepoDigests 非空 → 允许触发 updater → self_update 跑完”的正向验收
 
-**结论**：负向端到端已通过；正向端到端需解决 DockerHub 网络访问或改用可访问的镜像仓库/镜像源。
+**结论（阶段性）**：负向端到端已通过；正向端到端当时受 DockerHub 网络访问影响未完成。
+
+---
+
+#### 13. 策略A 正向端到端验收补全：真实“热更新切换”演示（A2 + 远程镜像 tag 变更）
+
+**时间**：2026-04-07 晚
+
+**目标**：补齐策略A的正向端到端验收，验证当远程镜像 tag 指向新 digest 时，A2 updater 能完成完整切换流程：
+
+- pull 最新镜像
+- digest 不同 → create 新容器
+- stop 旧容器释放端口
+- start 新容器 + health
+- rename（新容器接管原名称）
+- 旧容器保留为 backup（remove_old=false）
+
+**验收环境/对象**：
+
+- 镜像 tag：`guangshanshui/outlook-email-plus:a2-strategyA-canary`
+- 初始运行容器：`outlook-canary`（端口 `5005 -> 5000`，挂载 `/var/run/docker.sock`）
+- 触发更新方式：应用内接口 `POST /api/system/trigger-update?method=docker_api`（登录 + CSRF）
+
+**关键证据（更新前）**：
+
+- 运行中容器：`outlook-canary`
+- 容器使用的 image id（旧）：`sha256:056f69613d8dac7a486ed77a32c8041fb522c4f63d0fad8f6d0149078190e84e`
+- 容器镜像引用仍为 tag：`guangshanshui/outlook-email-plus:a2-strategyA-canary`
+- 本地同 tag 已被重新打到新镜像（新 image id）：`sha256:21aba8bda26d893f59af319eaeb5a72d06eedfd3b4f521a0d004e2bd9503b2fb`
+
+说明：容器创建时记录的是当时 tag 对应的镜像 ID；后续重新 push 同 tag 后，容器仍显示原 tag，但 image id 不会自动变化，因此能触发“digest 不同 → 更新”。
+
+**触发更新（PowerShell / Invoke-RestMethod，带 session cookie 与 CSRF）**：
+
+```powershell
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+
+# 1) 登录（写入 session cookie）
+$loginBody = @{ password = 'admin123' } | ConvertTo-Json
+Invoke-RestMethod -Uri 'http://localhost:5005/login' -Method Post -ContentType 'application/json' -Body $loginBody -WebSession $session
+
+# 2) 获取 CSRF token
+$csrf = (Invoke-RestMethod -Uri 'http://localhost:5005/api/csrf-token' -Method Get -WebSession $session).csrf_token
+
+# 3) 触发 Docker API 更新（A2 helper）
+Invoke-RestMethod -Uri 'http://localhost:5005/api/system/trigger-update?method=docker_api' -Method Post -Headers @{ 'X-CSRFToken' = $csrf } -WebSession $session
+```
+
+接口返回（关键字段）：
+
+```json
+{"success": true, "message": "更新任务已启动: oep-updater-1775571256 (e21bf4afbbdb)"}
+```
+
+**关键证据（更新后）**：
+
+1) `outlook-canary` 名称仍存在，且重新变为运行态并健康：
+
+- 新容器 ID（short）：`e0ba3c44dcc9`
+- 新容器 image id：`sha256:21aba8bda26d893f59af319eaeb5a72d06eedfd3b4f521a0d004e2bd9503b2fb`
+- 端口仍为：`0.0.0.0:5005->5000/tcp`
+
+2) 旧容器被 rename 为 backup 并退出（符合 A2 设计：保留旧容器便于回滚）：
+
+- 旧容器名称：`outlook-canary_backup_1775571270`
+- 旧容器 image id：`sha256:056f69613d8dac7a486ed77a32c8041fb522c4f63d0fad8f6d0149078190e84e`
+- 状态：Exited(0)
+
+3) `/healthz` 访问正常（证明新容器已接管服务）：
+
+```json
+{"status":"ok","version":"1.12.0","boot_id":"1775571264516-7"}
+```
+
+**结论**：策略A + A2 helper 的“正向端到端热更新切换”已完成，验证了 digest 变化场景下的 stop/start/rename/backup 全链路行为。
 
 **关联 Issue/PR**：待 Docker 容器内实际验收通过后提交
 

@@ -240,12 +240,36 @@ docker volume rm outlook-remote-data
 
 ### 必须通过的检查项
 
-- [ ] **负向用例1**：本地构建镜像触发更新被 403/500 拦截
-- [ ] **负向用例2**：本地构建伪装官方名触发更新被拦截
-- [ ] **正向用例3**：官方远程镜像可以成功触发更新流程
-- [ ] **部署信息**：本地镜像显示警告，远程镜像无警告
-- [ ] **错误提示**：被拦截时错误消息明确提示 "本地构建" 和 "RepoDigests 为空"
-- [ ] **容器安全**：触发更新失败时，原容器不会被 stop（继续运行）
+- [x] **负向用例1**：本地构建镜像触发更新被 403/500 拦截
+- [x] **负向用例2**：本地构建伪装官方名触发更新被拦截
+- [x] **正向用例3**：官方远程镜像可以成功触发更新流程（A2 helper 真实切换验证已完成）
+- [x] **部署信息**：本地镜像显示警告，远程镜像无警告/不标记为 local build
+- [x] **错误提示**：被拦截时错误消息明确提示 "本地构建" 和 "RepoDigests 为空"
+- [x] **容器安全**：触发更新失败时，原容器不会被 stop（继续运行）
+
+---
+
+## 附录：本次实际验收记录（2026-04-07）
+
+> 说明：以下为一次完整的“正向热更新切换”实测结果摘要，用于证明用例3不只是“触发成功”，而是完成了 stop/start/rename/backup 的全链路。
+
+### 正向热更新切换（远程镜像 + tag 同名但 digest 变更）
+
+- 目标容器：`outlook-canary`（端口 `5005->5000`，挂载 docker.sock，`DOCKER_SELF_UPDATE_ALLOW=true`）
+- 使用镜像：`guangshanshui/outlook-email-plus:a2-strategyA-canary`
+- 更新触发接口：`POST /api/system/trigger-update?method=docker_api`
+
+触发返回：
+```json
+{"success": true, "message": "更新任务已启动: oep-updater-1775571256 (e21bf4afbbdb)"}
+```
+
+更新后容器状态：
+- 新 `outlook-canary`：Up(healthy)，image id 变更为 `sha256:21aba8bda26d...`
+- 旧容器：被 rename 为 `outlook-canary_backup_1775571270`，Exited(0)，image id 为 `sha256:056f69613d8d...`
+
+应用可用性验证：
+- `GET /healthz` 返回 `status=ok`，证明新容器已接管服务。
 
 ### 可选检查项
 
