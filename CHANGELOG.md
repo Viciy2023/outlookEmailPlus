@@ -2,7 +2,7 @@
 
 All notable changes to OutlookMail Plus are documented in this file.
 
-## [v1.12.0] - 2026-04-09
+## [v1.13.0] - 2026-04-09
 
 ### 新功能 / New Features
 

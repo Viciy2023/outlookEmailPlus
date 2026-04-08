@@ -373,3 +373,22 @@ class V190FrontendContractTests(unittest.TestCase):
             normalized,
             re.compile(r"body\\s*\\{[^}]*overflow:\\s*hidden;", re.MULTILINE),
         )
+
+    def test_watchtower_i18n_keys_present(self):
+        """验证 Watchtower/Docker API 更新相关新增的 i18n 翻译键存在"""
+        client = self.app.test_client()
+        i18n_js = self._get_text(client, "/static/js/i18n.js")
+        main_js = self._get_text(client, "/static/js/main.js")
+
+        # i18n.js 中应包含新增的翻译条目
+        self.assertIn("'Watchtower 检查完毕，当前已是最新版本': 'Watchtower check complete, already up to date'", i18n_js)
+        self.assertIn("'✅ 连通正常': '✅ Connection OK'", i18n_js)
+        self.assertIn("'⏳ 测试中…': '⏳ Testing...'", i18n_js)
+        self.assertIn("'基础': 'Basic'", i18n_js)
+        self.assertIn("'临时邮箱': 'Temp Mailboxes'", i18n_js)
+        self.assertIn("'API 安全': 'API Security'", i18n_js)
+        self.assertIn("'自动化': 'Automation'", i18n_js)
+
+        # main.js 中应使用 translateAppTextLocal 翻译 Watchtower 结果
+        self.assertIn("translateAppTextLocal('✅ 连通正常')", main_js)
+        self.assertIn("translateAppTextLocal('⏳ 测试中…')", main_js)

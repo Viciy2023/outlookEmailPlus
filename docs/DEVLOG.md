@@ -1,5 +1,52 @@
 # DEVLOG
 
+## v1.13.0 - 热更新双模式端到端验证与合并
+
+发布日期：2026-04-09
+
+### 新增功能
+
+- 新增热更新双模式支持：Watchtower（推荐）和 Docker API 自更新（A2 helper 容器），可在设置页面一键切换更新方式。
+- 新增 Watchtower 集成：连通性测试、手动触发更新、已是最新版本智能检测（基于 Watchtower 同步 POST `/v1/update` 接口的行为特征——收到 200 响应即表示当前已是最新版本）。
+- 新增 Docker API 自更新（A2 方案）：通过 Docker API 创建短生命周期 updater 容器（`oep-updater-*`），执行 12 步更新流程（pull → digest 比对 → create → stop 旧 → start 新 → health check → rename → cleanup），支持失败自动回滚。
+- 新增 GHCR 镜像支持：白名单新增 `ghcr.io/zeropointsix/` 前缀，支持 GitHub Container Registry 镜像的热更新。
+- 新增版本比较 pre-release 后缀支持：`_version_gt()` 自动忽略 `-hotupdate-test` 等后缀，仅比较语义化版本号。
+- 新增 `/api/system/deployment-info` 部署信息 API：返回镜像名、标签类型、本地构建检测、Docker API 可用性、Watchtower 连通性。
+- 新增 healthz `boot_id` 和 `version` 字段：前端通过 boot_id 变化精确检测容器重启。
+- 新增设置面板手动触发更新按钮 UI，支持 i18n 中英双语。
+
+### 修复
+
+- 修复 Watchtower 连通测试超时：Watchtower `POST /v1/update` 是同步接口，完整镜像检查需 25-30s，连通测试超时从 5s 增加到 35s。
+- 修复 Watchtower 200 响应被误判为"更新成功"：实际为"已是最新版本"（收到 200 说明 Watchtower 完成检查且未触发更新）。
+- 修复 GHCR 镜像不在白名单导致 Docker API 更新被拦截。
+- 修复本地镜像检测 `_looks_like_local_image_ref()` 误判远程镜像为本地构建。
+- 修复 `can_auto_update` 逻辑仅检查 Watchtower 不检查 Docker API 可用性。
+- 修复 Docker API 自更新同步调用导致容器停止时 HTTP 响应中断（改为后台线程 + 立即返回 → 再改为 A2 helper 容器方案）。
+- 修复 `ModuleNotFoundError: outlook_web.models.AuditLog` 导致更新接口 500。
+- 修复前端 `waitForRestart()` 无法检测容器真正重启（新增 boot_id 变化检测 + seenDown 双重判定）。
+- 修复 Docker API 更新同 digest 时前端超时卡死（新增 digest 预检查，相同版本立即返回 `already_latest`）。
+- 修复 emoji 前缀文本（🔄/🚀）的 i18n 翻译匹配失败。
+- 修复设置页 Tab 标签（基础/临时邮箱/API 安全/自动化）缺少英文翻译。
+
+### 重要变更
+
+- 版本号从 `1.12.0` 提升到 `1.13.0`，应用 UI、系统接口和对外 API 返回的版本信息继续由 `outlook_web.__version__` 统一驱动。
+- 热更新功能经过 `hotupdate-test` 分支 24 个提交的端到端验证，使用 GHCR 远程镜像在 Docker 环境中完成了两种更新方式的实际测试。
+- 删除测试专用 compose 文件（`docker-compose.hotupdate-test.yml`、`docker-compose.docker-api-test.yml`），仅保留主 `docker-compose.yml`。
+- 英文 README 大幅更新：新增 docker-compose + Watchtower 部署方式、一键更新功能描述和环境变量说明。
+
+### 测试/验证
+
+- 自动化测试：`python -m unittest discover -s tests -v`
+  - 结果：`Ran 893 tests in 171.220s`
+  - 状态：全部通过（6 skipped）
+- 端到端验证（`hotupdate-test` 分支）：
+  - Watchtower 模式：连通性测试、已是最新检测、i18n 双语切换 ✅
+  - Docker API 模式：digest 预检查、A2 helper 容器创建/运行/自动清理 ✅
+  - 镜像白名单：本地构建拦截、GHCR 远程镜像放行 ✅
+  - 正向端到端：远程镜像 tag 变更 → A2 updater 完成 stop/start/rename/backup 全链路 ✅
+
 ## v1.10.0 - OAuth 回归修复与认证后工作区重构
 
 发布日期：2026-03-26
