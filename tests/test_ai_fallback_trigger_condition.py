@@ -95,6 +95,7 @@ class AiFallbackTriggerConditionTests(unittest.TestCase):
         # 规则结果保持不变
         self.assertEqual(result["verification_code"], "123456")
         self.assertEqual(result["code_confidence"], "high")
+        self.assertIsNone(result.get("verification_link"))
 
     @patch("outlook_web.services.verification_extractor._call_verification_ai")
     @patch(
@@ -111,9 +112,10 @@ class AiFallbackTriggerConditionTests(unittest.TestCase):
 
         mock_ai_call.assert_not_called()
         self.assertIsNone(result.get("ai_used"))
-        # 规则结果保持不变
-        self.assertIn("verify", result["verification_link"])
-        self.assertEqual(result["link_confidence"], "high")
+        # 严格互斥：有 code 时应抑制 link
+        self.assertEqual(result["verification_code"], "999000")
+        self.assertIsNone(result.get("verification_link"))
+        self.assertEqual(result["link_confidence"], "low")
 
     @patch("outlook_web.services.verification_extractor._call_verification_ai")
     @patch(
@@ -219,8 +221,10 @@ class AiFallbackTriggerConditionTests(unittest.TestCase):
     @patch(
         "outlook_web.services.verification_extractor.get_verification_ai_runtime_config"
     )
-    def test_code_high_link_low_preserves_link_result(self, mock_config, mock_ai_call):
-        """code=high + link=low → 不触发 AI，但保留原始 link 结果（不丢弃）"""
+    def test_code_high_link_low_enforces_mutual_exclusion(
+        self, mock_config, mock_ai_call
+    ):
+        """code=high + link=low → 不触发 AI，且按产品策略抑制 verification_link"""
         mock_config.return_value = _AI_CONFIG
         extracted = _make_extracted("high", "low")
 
@@ -229,8 +233,8 @@ class AiFallbackTriggerConditionTests(unittest.TestCase):
         )
 
         mock_ai_call.assert_not_called()
-        # link 虽然是 low，但原值仍保留在结果中
-        self.assertIsNotNone(result.get("verification_link"))
+        # 严格互斥：有 code 时不返回 link
+        self.assertIsNone(result.get("verification_link"))
         self.assertEqual(result["link_confidence"], "low")
 
 

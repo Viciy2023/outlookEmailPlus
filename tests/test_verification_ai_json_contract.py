@@ -73,6 +73,56 @@ class VerificationAiJsonContractTests(unittest.TestCase):
             enhanced.get("verification_link"), base.get("verification_link")
         )
 
+    @patch("outlook_web.services.verification_extractor.requests.post")
+    def test_ai_link_does_not_override_when_code_exists(self, mock_post):
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"schema_version":"verification_ai_v1","verification_code":"998877","verification_link":"https://example.com/verify?t=1","confidence":"high","reason":"ok"}'
+                            }
+                        }
+                    ]
+                }
+
+        mock_post.return_value = _Resp()
+
+        with patch(
+            "outlook_web.services.verification_extractor.get_verification_ai_runtime_config",
+            return_value={
+                "enabled": True,
+                "base_url": "https://api.example.com/v1/chat/completions",
+                "api_key": "sk-test",
+                "model": "gpt-4.1-mini",
+            },
+        ):
+            enhanced = extractor.enhance_verification_with_ai_fallback(
+                email={
+                    "subject": "misc",
+                    "body": "random text",
+                    "body_html": "",
+                },
+                extracted={
+                    "verification_code": None,
+                    "verification_link": "https://shop.example.com/deals",
+                    "links": ["https://shop.example.com/deals"],
+                    "formatted": "https://shop.example.com/deals",
+                    "match_source": "all",
+                    "confidence": "low",
+                    "code_confidence": "low",
+                    "link_confidence": "low",
+                },
+            )
+
+        self.assertEqual(enhanced.get("verification_code"), "998877")
+        self.assertIsNone(enhanced.get("verification_link"))
+        self.assertEqual(enhanced.get("formatted"), "998877")
+
 
 if __name__ == "__main__":
     unittest.main()

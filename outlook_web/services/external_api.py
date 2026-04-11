@@ -187,7 +187,9 @@ def get_current_external_api_consumer() -> Dict[str, Any]:
     return get_external_api_consumer() or {}
 
 
-def ensure_external_email_access(email_addr: str, *, allow_finished: bool = False) -> None:
+def ensure_external_email_access(
+    email_addr: str, *, allow_finished: bool = False
+) -> None:
     ensure_external_email_scope(email_addr, allow_finished=allow_finished)
     mailbox = mailbox_resolver.resolve_mailbox(email_addr)
     mailbox_resolver.ensure_mailbox_can_read(
@@ -197,11 +199,16 @@ def ensure_external_email_access(email_addr: str, *, allow_finished: bool = Fals
     )
 
 
-def ensure_external_email_scope(email_addr: str, *, allow_finished: bool = False) -> None:
+def ensure_external_email_scope(
+    email_addr: str, *, allow_finished: bool = False
+) -> None:
     mailbox = mailbox_resolver.resolve_mailbox(email_addr)
     consumer = get_current_external_api_consumer()
     if mailbox.get("kind") == "account":
-        allowed_emails = [str(item or "").strip().lower() for item in (consumer.get("allowed_emails") or [])]
+        allowed_emails = [
+            str(item or "").strip().lower()
+            for item in (consumer.get("allowed_emails") or [])
+        ]
         target_email = str(email_addr or "").strip().lower()
         if allowed_emails and target_email not in allowed_emails:
             raise EmailScopeForbiddenError(
@@ -214,10 +221,14 @@ def ensure_external_email_scope(email_addr: str, *, allow_finished: bool = False
             )
         return
 
-    mailbox_resolver.ensure_mailbox_can_read(mailbox, consumer=consumer, allow_finished=allow_finished)
+    mailbox_resolver.ensure_mailbox_can_read(
+        mailbox, consumer=consumer, allow_finished=allow_finished
+    )
 
 
-def _build_message_summary(email_addr: str, item: Dict[str, Any], *, method: str) -> Dict[str, Any]:
+def _build_message_summary(
+    email_addr: str, item: Dict[str, Any], *, method: str
+) -> Dict[str, Any]:
     raw_from = item.get("from")
     if isinstance(raw_from, dict):
         from_address = (raw_from.get("emailAddress") or {}).get("address") or ""
@@ -228,16 +239,28 @@ def _build_message_summary(email_addr: str, item: Dict[str, Any], *, method: str
     subject = str(item.get("subject") or "无主题")
 
     created_at_raw = (
-        item.get("receivedDateTime") or item.get("date") or item.get("created_at") or item.get("received_at") or ""
+        item.get("receivedDateTime")
+        or item.get("date")
+        or item.get("created_at")
+        or item.get("received_at")
+        or ""
     )
     created_dt = _parse_datetime(str(created_at_raw))
     created_at, timestamp = _format_datetime(created_dt, str(created_at_raw))
 
     content_preview = str(
-        item.get("bodyPreview") or item.get("body_preview") or item.get("content_preview") or item.get("bodyPreview") or ""
+        item.get("bodyPreview")
+        or item.get("body_preview")
+        or item.get("content_preview")
+        or item.get("bodyPreview")
+        or ""
     )
 
-    is_read = bool(item.get("isRead") if "isRead" in item else item.get("is_read") or item.get("isRead") or False)
+    is_read = bool(
+        item.get("isRead")
+        if "isRead" in item
+        else item.get("is_read") or item.get("isRead") or False
+    )
 
     return {
         "id": str(item.get("id") or ""),
@@ -287,8 +310,12 @@ def _account_can_read(account: Dict[str, Any]) -> bool:
         return False
     account_type = (account.get("account_type") or "outlook").strip().lower()
     if account_type == "imap":
-        return bool((account.get("imap_host") or "").strip()) and bool((account.get("imap_password") or "").strip())
-    return bool((account.get("client_id") or "").strip()) and bool((account.get("refresh_token") or "").strip())
+        return bool((account.get("imap_host") or "").strip()) and bool(
+            (account.get("imap_password") or "").strip()
+        )
+    return bool((account.get("client_id") or "").strip()) and bool(
+        (account.get("refresh_token") or "").strip()
+    )
 
 
 def can_account_read(account: Dict[str, Any]) -> bool:
@@ -417,12 +444,18 @@ def probe_account_upstream(
     email_addr = str(account.get("email") or "").strip()
     preferred_method = _preferred_probe_method(account)
     cached = get_upstream_probe_summary("account", email_addr) if email_addr else {}
-    if email_addr and (not force) and _is_probe_summary_fresh(cached, cache_ttl_seconds):
+    if (
+        email_addr
+        and (not force)
+        and _is_probe_summary_fresh(cached, cache_ttl_seconds)
+    ):
         return cached
 
     last_probe_at = _probe_now_iso()
     try:
-        _emails, method = list_messages_for_external(email_addr=email_addr, folder=folder, top=1, skip=0)
+        _emails, method = list_messages_for_external(
+            email_addr=email_addr, folder=folder, top=1, skip=0
+        )
         summary = record_upstream_probe_summary(
             scope_type="account",
             scope_key=email_addr,
@@ -462,7 +495,9 @@ def _pick_instance_probe_account() -> Optional[Dict[str, Any]]:
     return None
 
 
-def probe_instance_upstream(*, cache_ttl_seconds: int = 60, force: bool = False) -> Dict[str, Any]:
+def probe_instance_upstream(
+    *, cache_ttl_seconds: int = 60, force: bool = False
+) -> Dict[str, Any]:
     cached = get_upstream_probe_summary("instance", "__instance__")
     if (not force) and _is_probe_summary_fresh(cached, cache_ttl_seconds):
         return cached
@@ -471,7 +506,9 @@ def probe_instance_upstream(*, cache_ttl_seconds: int = 60, force: bool = False)
     if not account:
         return cached
 
-    return probe_account_upstream(account, cache_ttl_seconds=cache_ttl_seconds, force=force)
+    return probe_account_upstream(
+        account, cache_ttl_seconds=cache_ttl_seconds, force=force
+    )
 
 
 def list_messages_for_external(
@@ -482,7 +519,9 @@ def list_messages_for_external(
     top: int = 20,
 ) -> Tuple[List[Dict[str, Any]], str]:
     mailbox = mailbox_resolver.resolve_mailbox(email_addr)
-    mailbox_meta = mailbox_resolver.ensure_mailbox_can_read(mailbox, consumer=get_current_external_api_consumer())
+    mailbox_meta = mailbox_resolver.ensure_mailbox_can_read(
+        mailbox, consumer=get_current_external_api_consumer()
+    )
     folder = (folder or "inbox").strip().lower() or "inbox"
     skip = max(0, int(skip or 0))
     top = max(1, min(int(top or 20), 50))
@@ -493,11 +532,15 @@ def list_messages_for_external(
             messages = service.list_messages(mailbox, sync_remote=True)
         except TempMailError as exc:
             raise UpstreamReadFailedError(
-                "临时邮箱上游读取失败" if exc.code == "TEMP_EMAIL_UPSTREAM_READ_FAILED" else exc.message,
+                "临时邮箱上游读取失败"
+                if exc.code == "TEMP_EMAIL_UPSTREAM_READ_FAILED"
+                else exc.message,
                 data=exc.data,
             ) from exc
         sliced = messages[skip : skip + top]  # noqa: E203
-        method_label = str(sliced[0].get("method") or "Temp Mail") if sliced else "Temp Mail"
+        method_label = (
+            str(sliced[0].get("method") or "Temp Mail") if sliced else "Temp Mail"
+        )
         return sliced, method_label
 
     account = mailbox_meta
@@ -517,7 +560,10 @@ def list_messages_for_external(
         if not result.get("success"):
             raise UpstreamReadFailedError("IMAP 读取失败", data=result.get("error"))
         method_label = str(result.get("method") or "IMAP (Generic)")
-        emails = [_build_message_summary(email_addr, e, method=method_label) for e in (result.get("emails") or [])]
+        emails = [
+            _build_message_summary(email_addr, e, method=method_label)
+            for e in (result.get("emails") or [])
+        ]
         return emails, method_label
 
     proxy_url = _get_proxy_url(account)
@@ -532,7 +578,10 @@ def list_messages_for_external(
     )
     if graph_result.get("success"):
         method_label = "Graph API"
-        emails = [_build_message_summary(email_addr, e, method=method_label) for e in (graph_result.get("emails") or [])]
+        emails = [
+            _build_message_summary(email_addr, e, method=method_label)
+            for e in (graph_result.get("emails") or [])
+        ]
         return emails, method_label
 
     graph_error = graph_result.get("error")
@@ -554,7 +603,10 @@ def list_messages_for_external(
     )
     if imap_new_result.get("success"):
         method_label = "IMAP (New)"
-        emails = [_build_message_summary(email_addr, e, method=method_label) for e in (imap_new_result.get("emails") or [])]
+        emails = [
+            _build_message_summary(email_addr, e, method=method_label)
+            for e in (imap_new_result.get("emails") or [])
+        ]
         return emails, method_label
 
     imap_old_result = imap_service.get_emails_imap_with_server(
@@ -568,7 +620,10 @@ def list_messages_for_external(
     )
     if imap_old_result.get("success"):
         method_label = "IMAP (Old)"
-        emails = [_build_message_summary(email_addr, e, method=method_label) for e in (imap_old_result.get("emails") or [])]
+        emails = [
+            _build_message_summary(email_addr, e, method=method_label)
+            for e in (imap_old_result.get("emails") or [])
+        ]
         return emails, method_label
 
     raise UpstreamReadFailedError(
@@ -611,7 +666,9 @@ def filter_messages(  # noqa: C901
             continue
 
         if since_dt is not None:
-            dt = _parse_datetime(e.get("created_at") or e.get("date") or e.get("receivedDateTime") or "")
+            dt = _parse_datetime(
+                e.get("created_at") or e.get("date") or e.get("receivedDateTime") or ""
+            )
             if dt and dt < since_dt:
                 continue
 
@@ -633,7 +690,9 @@ def get_latest_message_for_external(
     since_minutes: Optional[int] = None,
     baseline_timestamp: Optional[int] = None,
 ) -> Dict[str, Any]:
-    emails = list_messages_for_external(email_addr=email_addr, folder=folder, skip=0, top=20)[0]
+    emails = list_messages_for_external(
+        email_addr=email_addr, folder=folder, skip=0, top=20
+    )[0]
     filtered = filter_messages(
         emails,
         from_contains=from_contains,
@@ -655,7 +714,9 @@ def get_message_detail_for_external(  # noqa: C901
     folder: str = "inbox",
 ) -> Dict[str, Any]:
     mailbox = mailbox_resolver.resolve_mailbox(email_addr)
-    mailbox_meta = mailbox_resolver.ensure_mailbox_can_read(mailbox, consumer=get_current_external_api_consumer())
+    mailbox_meta = mailbox_resolver.ensure_mailbox_can_read(
+        mailbox, consumer=get_current_external_api_consumer()
+    )
     message_id = (message_id or "").strip()
     if not message_id:
         raise InvalidParamError("message_id 不能为空")
@@ -667,9 +728,13 @@ def get_message_detail_for_external(  # noqa: C901
             return service.refresh_message_detail(mailbox, message_id)
         except TempMailError as exc:
             if exc.code == "TEMP_EMAIL_MESSAGE_NOT_FOUND":
-                raise MailNotFoundError(exc.message, data={"email": email_addr, "message_id": message_id}) from exc
+                raise MailNotFoundError(
+                    exc.message, data={"email": email_addr, "message_id": message_id}
+                ) from exc
             raise UpstreamReadFailedError(
-                "临时邮箱上游读取失败" if exc.code == "TEMP_EMAIL_UPSTREAM_READ_FAILED" else exc.message,
+                "临时邮箱上游读取失败"
+                if exc.code == "TEMP_EMAIL_UPSTREAM_READ_FAILED"
+                else exc.message,
                 data=exc.data,
             ) from exc
 
@@ -688,14 +753,20 @@ def get_message_detail_for_external(  # noqa: C901
         )
         if not detail_result.get("success"):
             error_payload = detail_result.get("error") or {}
-            raise UpstreamReadFailedError(str(error_payload.get("message") or "IMAP 读取失败"), data=error_payload)
+            raise UpstreamReadFailedError(
+                str(error_payload.get("message") or "IMAP 读取失败"), data=error_payload
+            )
         detail = detail_result.get("email") or {}
 
         html_content = str(detail.get("body_html") or "")
-        content = str(detail.get("body_text") or "") or extract_email_text({"body_html": html_content})
+        content = str(detail.get("body_text") or "") or extract_email_text(
+            {"body_html": html_content}
+        )
         raw_content = str(detail.get("raw_content") or "")
         created_at_raw = str(detail.get("date") or "")
-        created_at, timestamp = _format_datetime(_parse_datetime(created_at_raw), created_at_raw)
+        created_at, timestamp = _format_datetime(
+            _parse_datetime(created_at_raw), created_at_raw
+        )
         return {
             "id": detail.get("id") or message_id,
             "email_address": email_addr,
@@ -751,7 +822,9 @@ def get_message_detail_for_external(  # noqa: C901
         method_label = "IMAP (Old)"
 
     if not detail:
-        raise MailNotFoundError("未找到邮件详情", data={"email": email_addr, "message_id": message_id})
+        raise MailNotFoundError(
+            "未找到邮件详情", data={"email": email_addr, "message_id": message_id}
+        )
 
     created_at_raw = ""
     timestamp = 0
@@ -763,11 +836,22 @@ def get_message_detail_for_external(  # noqa: C901
         body_content = str(body_obj.get("content") or "")
 
         html_content = body_content if body_type == "html" else ""
-        content = body_content if body_type == "text" else extract_email_text({"body_html": html_content})
+        content = (
+            body_content
+            if body_type == "text"
+            else extract_email_text({"body_html": html_content})
+        )
         raw_content = str(graph_raw_content or body_content)
 
-        from_address = (detail.get("from") or {}).get("emailAddress", {}).get("address", "")
-        to_address = ",".join([r.get("emailAddress", {}).get("address", "") for r in (detail.get("toRecipients") or [])])
+        from_address = (
+            (detail.get("from") or {}).get("emailAddress", {}).get("address", "")
+        )
+        to_address = ",".join(
+            [
+                r.get("emailAddress", {}).get("address", "")
+                for r in (detail.get("toRecipients") or [])
+            ]
+        )
         created_at_raw = str(detail.get("receivedDateTime") or "")
         subject = str(detail.get("subject") or "")
     else:
@@ -780,7 +864,9 @@ def get_message_detail_for_external(  # noqa: C901
         created_at_raw = str(detail.get("date") or "")
         subject = str(detail.get("subject") or "")
 
-    created_at, timestamp = _format_datetime(_parse_datetime(created_at_raw), created_at_raw)
+    created_at, timestamp = _format_datetime(
+        _parse_datetime(created_at_raw), created_at_raw
+    )
 
     return {
         "id": message_id,
@@ -801,11 +887,15 @@ def get_message_detail_for_external(  # noqa: C901
 def _extract_sender_address_from_message_item(item: Dict[str, Any]) -> str:
     raw_from = item.get("from")
     if isinstance(raw_from, dict):
-        raw_from = (raw_from.get("emailAddress") or {}).get("address") or raw_from.get("address")
+        raw_from = (raw_from.get("emailAddress") or {}).get("address") or raw_from.get(
+            "address"
+        )
     return _extract_email_address(str(raw_from or item.get("from_address") or ""))
 
 
-def _build_email_obj_from_detail(detail: Dict[str, Any], latest_summary: Dict[str, Any]) -> Dict[str, Any]:
+def _build_email_obj_from_detail(
+    detail: Dict[str, Any], latest_summary: Dict[str, Any]
+) -> Dict[str, Any]:
     email_obj = {
         "subject": detail.get("subject") or latest_summary.get("subject") or "",
         "body_preview": latest_summary.get("content_preview") or "",
@@ -819,9 +909,41 @@ def _build_email_obj_from_detail(detail: Dict[str, Any], latest_summary: Dict[st
         email_obj["body_html"] = body_content if body_type == "html" else ""
     else:
         email_obj["body"] = str(detail.get("body") or detail.get("content") or "")
-        email_obj["body_html"] = str(detail.get("body_html") or detail.get("html_content") or "")
+        email_obj["body_html"] = str(
+            detail.get("body_html") or detail.get("html_content") or ""
+        )
 
     return email_obj
+
+
+def _shape_verification_result_by_expected_field(
+    extracted: Dict[str, Any], expected_field: str | None
+) -> Dict[str, Any]:
+    """按接口语义裁剪输出：code 接口只返回 code，link 接口只返回 link。"""
+    if expected_field not in {"verification_code", "verification_link"}:
+        return extracted
+
+    result = dict(extracted or {})
+    if expected_field == "verification_code":
+        result["verification_link"] = None
+        result["link_confidence"] = "low"
+    else:
+        result["verification_code"] = None
+        result["code_confidence"] = "low"
+
+    parts = [
+        v
+        for v in (result.get("verification_code"), result.get("verification_link"))
+        if v
+    ]
+    result["formatted"] = " ".join(parts) if parts else None
+    result["confidence"] = (
+        "high"
+        if result.get("code_confidence") == "high"
+        or result.get("link_confidence") == "high"
+        else "low"
+    )
+    return result
 
 
 def _extract_verification_with_memory_for_outlook(  # noqa: C901
@@ -841,7 +963,9 @@ def _extract_verification_with_memory_for_outlook(  # noqa: C901
     preferred_channel = verification_channel_service.normalize_verification_channel(
         account.get("preferred_verification_channel")
     )
-    channel_plan = verification_channel_service.build_verification_channel_plan(preferred_channel)
+    channel_plan = verification_channel_service.build_verification_channel_plan(
+        preferred_channel
+    )
     proxy_url = _get_proxy_url(account)
 
     any_channel_read_success = False
@@ -902,6 +1026,7 @@ def _extract_verification_with_memory_for_outlook(  # noqa: C901
             code_regex=resolved_policy.get("code_regex"),
             code_length=resolved_policy.get("code_length"),
             code_source=code_source,
+            enforce_mutual_exclusion=False,
         )
         extracted = enhance_verification_with_ai_fallback(
             email=email_obj,
@@ -909,16 +1034,21 @@ def _extract_verification_with_memory_for_outlook(  # noqa: C901
             code_regex=resolved_policy.get("code_regex"),
             code_length=resolved_policy.get("code_length"),
             code_source=code_source,
+            enforce_mutual_exclusion=False,
         )
-        extracted = apply_confidence_gate(extracted)
+        extracted = apply_confidence_gate(extracted, enforce_mutual_exclusion=False)
 
         detail_from = _extract_sender_address_from_message_item(detail)
         summary_from = str(latest_summary.get("from_address") or "")
         extracted["email"] = email_addr
         extracted["matched_email_id"] = message_id
         extracted["from"] = detail_from or summary_from
-        extracted["subject"] = str(detail.get("subject") or "") or str(latest_summary.get("subject") or "")
-        extracted["received_at"] = str(detail.get("created_at") or "") or str(latest_summary.get("created_at") or "")
+        extracted["subject"] = str(detail.get("subject") or "") or str(
+            latest_summary.get("subject") or ""
+        )
+        extracted["received_at"] = str(detail.get("created_at") or "") or str(
+            latest_summary.get("created_at") or ""
+        )
         extracted["method"] = method_label
         last_extracted = extracted
 
@@ -928,12 +1058,20 @@ def _extract_verification_with_memory_for_outlook(  # noqa: C901
         if not should_return:
             continue
 
+        extracted = _shape_verification_result_by_expected_field(
+            extracted, expected_field
+        )
+
         if verification_channel_service.is_outlook_oauth_account(account):
-            accounts_repo.update_preferred_verification_channel(int(account["id"]), channel)
+            accounts_repo.update_preferred_verification_channel(
+                int(account["id"]), channel
+            )
         return extracted
 
     if last_extracted is not None:
-        return last_extracted
+        return _shape_verification_result_by_expected_field(
+            last_extracted, expected_field
+        )
 
     if not any_channel_read_success:
         raise UpstreamReadFailedError(
@@ -983,7 +1121,9 @@ def get_verification_result(
 
     ai_config = get_verification_ai_runtime_config()
     if ai_config.get("enabled") and not is_verification_ai_config_complete(ai_config):
-        raise VerificationAiConfigIncompleteError("验证码 AI 已开启，请完整填写 Base URL、API Key、模型 ID")
+        raise VerificationAiConfigIncompleteError(
+            "验证码 AI 已开启，请完整填写 Base URL、API Key、模型 ID"
+        )
 
     if (
         account
@@ -1014,7 +1154,9 @@ def get_verification_result(
     message_id = str(latest_summary.get("id") or "")
     method = str(latest_summary.get("method") or "")
 
-    detail = get_message_detail_for_external(email_addr=email_addr, message_id=message_id, folder=folder)
+    detail = get_message_detail_for_external(
+        email_addr=email_addr, message_id=message_id, folder=folder
+    )
 
     email_obj = {
         "subject": detail.get("subject") or "",
@@ -1027,6 +1169,7 @@ def get_verification_result(
         code_regex=resolved_policy.get("code_regex"),
         code_length=resolved_policy.get("code_length"),
         code_source=code_source,
+        enforce_mutual_exclusion=False,
     )
     extracted = enhance_verification_with_ai_fallback(
         email=email_obj,
@@ -1034,18 +1177,23 @@ def get_verification_result(
         code_regex=resolved_policy.get("code_regex"),
         code_length=resolved_policy.get("code_length"),
         code_source=code_source,
+        enforce_mutual_exclusion=False,
     )
 
     # ── 可信度门控：与临时邮箱提取路径使用统一逻辑 ──
-    extracted = apply_confidence_gate(extracted)
+    extracted = apply_confidence_gate(extracted, enforce_mutual_exclusion=False)
 
     extracted["email"] = email_addr
     extracted["matched_email_id"] = message_id
-    extracted["from"] = detail.get("from_address") or latest_summary.get("from_address") or ""
+    extracted["from"] = (
+        detail.get("from_address") or latest_summary.get("from_address") or ""
+    )
     extracted["subject"] = detail.get("subject") or latest_summary.get("subject") or ""
-    extracted["received_at"] = detail.get("created_at") or latest_summary.get("created_at") or ""
+    extracted["received_at"] = (
+        detail.get("created_at") or latest_summary.get("created_at") or ""
+    )
     extracted["method"] = detail.get("method") or method
-    return extracted
+    return _shape_verification_result_by_expected_field(extracted, expected_field)
 
 
 def wait_for_message(  # noqa: C901
@@ -1066,7 +1214,9 @@ def wait_for_message(  # noqa: C901
         raise InvalidParamError("timeout_seconds/poll_interval 参数无效") from exc
 
     if timeout_seconds <= 0 or timeout_seconds > MAX_TIMEOUT_SECONDS:
-        raise InvalidParamError(f"timeout_seconds 必须在 1-{MAX_TIMEOUT_SECONDS} 秒之间")
+        raise InvalidParamError(
+            f"timeout_seconds 必须在 1-{MAX_TIMEOUT_SECONDS} 秒之间"
+        )
     if poll_interval <= 0 or poll_interval > timeout_seconds:
         raise InvalidParamError("poll_interval 参数无效")
 
@@ -1096,7 +1246,9 @@ def wait_for_message(  # noqa: C901
             last_error = exc
 
         if time.time() - start >= timeout_seconds:
-            raise MailNotFoundError("等待超时，未检测到匹配邮件", data={"email": email_addr}) from last_error
+            raise MailNotFoundError(
+                "等待超时，未检测到匹配邮件", data={"email": email_addr}
+            ) from last_error
 
         time.sleep(poll_interval)
 
@@ -1118,7 +1270,9 @@ def _validate_probe_params(
     except Exception as exc:
         raise InvalidParamError("timeout_seconds/poll_interval 参数无效") from exc
     if timeout_seconds <= 0 or timeout_seconds > MAX_TIMEOUT_SECONDS:
-        raise InvalidParamError(f"timeout_seconds 必须在 1-{MAX_TIMEOUT_SECONDS} 秒之间")
+        raise InvalidParamError(
+            f"timeout_seconds 必须在 1-{MAX_TIMEOUT_SECONDS} 秒之间"
+        )
     if poll_interval <= 0 or poll_interval > timeout_seconds:
         raise InvalidParamError("poll_interval 参数无效")
 
@@ -1145,14 +1299,20 @@ def create_probe(
     _validate_probe_params(email_addr, timeout_seconds, poll_interval)
 
     mailbox = mailbox_resolver.resolve_mailbox(email_addr)
-    mailbox_resolver.ensure_mailbox_can_read(mailbox, consumer=get_current_external_api_consumer())
+    mailbox_resolver.ensure_mailbox_can_read(
+        mailbox, consumer=get_current_external_api_consumer()
+    )
 
     probe_id = uuid.uuid4().hex
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=int(timeout_seconds))
 
     # PR#27：若传入了 baseline_timestamp，使用它；否则使用 now 作为基准
-    effective_baseline = baseline_timestamp if (baseline_timestamp and baseline_timestamp > 0) else int(now.timestamp())
+    effective_baseline = (
+        baseline_timestamp
+        if (baseline_timestamp and baseline_timestamp > 0)
+        else int(now.timestamp())
+    )
 
     db = get_db()
     db.execute(
@@ -1197,7 +1357,9 @@ def get_probe_status(probe_id: str) -> Dict[str, Any]:
         raise InvalidParamError("probe_id 不能为空")
 
     db = get_db()
-    row = db.execute("SELECT * FROM external_probe_cache WHERE id = ?", (probe_id,)).fetchone()
+    row = db.execute(
+        "SELECT * FROM external_probe_cache WHERE id = ?", (probe_id,)
+    ).fetchone()
 
     if not row:
         raise MailNotFoundError("探测请求不存在", data={"probe_id": probe_id})
@@ -1299,7 +1461,9 @@ def _get_probe_baseline_timestamp(row: Any) -> int:
         return int(time.time()) - int(row["timeout_seconds"] or 0)
 
 
-def _mark_probe_matched(db: Any, probe_id: str, latest: Dict[str, Any], now: str) -> None:
+def _mark_probe_matched(
+    db: Any, probe_id: str, latest: Dict[str, Any], now: str
+) -> None:
     db.execute(
         """
         UPDATE external_probe_cache
@@ -1381,7 +1545,9 @@ def cleanup_expired_probes(app: Any = None, max_age_minutes: int = 30) -> int:
 
     try:
         db = get_db()
-        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)).isoformat()
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+        ).isoformat()
         cursor = db.execute(
             """
             DELETE FROM external_probe_cache
@@ -1430,12 +1596,18 @@ def resolve_external_mail_scope(
     if claim_token and claim_token.strip():
         ctx = get_claim_context(claim_token=claim_token.strip())
         if ctx is None:
-            raise InvalidParamError("claim_token 无效或已过期", data={"claim_token": claim_token})
+            raise InvalidParamError(
+                "claim_token 无效或已过期", data={"claim_token": claim_token}
+            )
         resolved_email = ctx.get("email") or ""
         if not resolved_email:
             raise InvalidParamError("claim_token 对应账号无邮箱地址")
         # 若 email_addr 也有值，校验一致性
-        if email_addr and email_addr.strip() and email_addr.strip().lower() != resolved_email.lower():
+        if (
+            email_addr
+            and email_addr.strip()
+            and email_addr.strip().lower() != resolved_email.lower()
+        ):
             raise InvalidParamError(
                 "claim_token 与 email 不一致",
                 data={"email": email_addr, "claim_token_email": resolved_email},

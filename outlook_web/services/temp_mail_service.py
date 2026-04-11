@@ -700,6 +700,7 @@ class TempMailService:
             code_regex=code_regex,
             code_length=code_length,
             code_source=code_source,
+            enforce_mutual_exclusion=False,
         )
         ai_config = get_verification_ai_runtime_config()
         if ai_config.get("enabled") and not is_verification_ai_config_complete(
@@ -721,9 +722,10 @@ class TempMailService:
             code_regex=code_regex,
             code_length=code_length,
             code_source=code_source,
+            enforce_mutual_exclusion=False,
         )
         # 与外部 API 保持一致：应用置信度门控
-        extracted = apply_confidence_gate(extracted)
+        extracted = apply_confidence_gate(extracted, enforce_mutual_exclusion=False)
         extracted["matched_email_id"] = latest["id"]
         extracted["from"] = (
             detail.get("from_address") or latest.get("from_address") or ""

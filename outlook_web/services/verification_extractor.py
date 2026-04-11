@@ -522,6 +522,7 @@ def extract_verification_info_with_options(
     code_length: str | None = None,
     code_source: str = "all",
     prefer_link_keywords: list[str] | None = None,
+    enforce_mutual_exclusion: bool = True,
 ) -> Dict[str, Any]:
     """
     在现有提取器基础上支持：
@@ -578,22 +579,25 @@ def extract_verification_info_with_options(
     # ── 链接提取 & 置信度 ──
     links = extract_links(f"{subject} {content} {html_content}".strip())
     prefer_keywords = prefer_link_keywords or DEFAULT_LINK_KEYWORDS
-    verification_link = _pick_preferred_link(links, prefer_keywords)
 
+    verification_link = None
     link_confidence: str = "low"
-    if verification_link:
-        # 优先检查 URL 本身是否含验证关键词
-        for kw in prefer_keywords:
-            if kw and kw.lower() in verification_link.lower():
-                link_confidence = "high"
-                break
-        # URL 不含关键词时，检查邮件正文/主题是否有强验证语境短语
-        if link_confidence != "high":
-            full_text_lower = f"{subject} {content}".lower()
-            for phrase in LINK_CONTEXT_PHRASES:
-                if phrase.lower() in full_text_lower:
+    should_pick_link = (not enforce_mutual_exclusion) or (not verification_code)
+    if should_pick_link:
+        verification_link = _pick_preferred_link(links, prefer_keywords)
+        if verification_link:
+            # 优先检查 URL 本身是否含验证关键词
+            for kw in prefer_keywords:
+                if kw and kw.lower() in verification_link.lower():
                     link_confidence = "high"
                     break
+            # URL 不含关键词时，检查邮件正文/主题是否有强验证语境短语
+            if link_confidence != "high":
+                full_text_lower = f"{subject} {content}".lower()
+                for phrase in LINK_CONTEXT_PHRASES:
+                    if phrase.lower() in full_text_lower:
+                        link_confidence = "high"
+                        break
 
     # 总 confidence 向后兼容：取 code / link 中较高者
     confidence = (
@@ -619,7 +623,9 @@ def extract_verification_info_with_options(
     }
 
 
-def apply_confidence_gate(extracted: Dict[str, Any]) -> Dict[str, Any]:
+def apply_confidence_gate(
+    extracted: Dict[str, Any], *, enforce_mutual_exclusion: bool = True
+) -> Dict[str, Any]:
     """
     对 extract_verification_info_with_options() 的返回结果应用置信度门控。
 
@@ -643,6 +649,11 @@ def apply_confidence_gate(extracted: Dict[str, Any]) -> Dict[str, Any]:
         result["verification_code"] = None
     if result.get("link_confidence") != "high":
         result["verification_link"] = None
+
+    # 产品策略：严格互斥（code 优先）
+    if enforce_mutual_exclusion and result.get("verification_code"):
+        result["verification_link"] = None
+        result["link_confidence"] = "low"
 
     parts = [
         v
@@ -1009,6 +1020,7 @@ def enhance_verification_with_ai_fallback(
     code_regex: str | None = None,
     code_length: str | None = None,
     code_source: str = "all",
+    enforce_mutual_exclusion: bool = True,
 ) -> Dict[str, Any]:
     """
     规则优先、AI 回退：
@@ -1016,17 +1028,41 @@ def enhance_verification_with_ai_fallback(
     - 仅在 code/link 均为 low 时才触发 AI
     - AI 无效/异常时快速回退规则结果
     """
+
+    def _apply_output_policy(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """统一收口：强制 code/link 严格互斥并重算格式字段。"""
+        normalized = dict(payload or {})
+
+        # 产品策略：有 code（无论置信度）时，不返回 verification_link
+        if enforce_mutual_exclusion and normalized.get("verification_code"):
+            normalized["verification_link"] = None
+            normalized["link_confidence"] = "low"
+
+        parts = []
+        if normalized.get("verification_code"):
+            parts.append(str(normalized.get("verification_code")))
+        if normalized.get("verification_link"):
+            parts.append(str(normalized.get("verification_link")))
+        normalized["formatted"] = " ".join(parts) if parts else None
+        normalized["confidence"] = (
+            "high"
+            if normalized.get("code_confidence") == "high"
+            or normalized.get("link_confidence") == "high"
+            else "low"
+        )
+        return normalized
+
     result = dict(extracted or {})
 
     code_confidence = str(result.get("code_confidence") or "low").lower()
     link_confidence = str(result.get("link_confidence") or "low").lower()
     # 方案 A：任一 high 即跳过 AI，只有 both-low 才触发
     if code_confidence == "high" or link_confidence == "high":
-        return result
+        return _apply_output_policy(result)
 
     ai_config = get_verification_ai_runtime_config()
     if not is_verification_ai_config_complete(ai_config):
-        return result
+        return _apply_output_policy(result)
 
     ai_input = build_verification_ai_input_payload(
         email,
@@ -1036,7 +1072,7 @@ def enhance_verification_with_ai_fallback(
     )
     ai_output = _call_verification_ai(ai_config, ai_input)
     if not ai_output:
-        return result
+        return _apply_output_policy(result)
 
     ai_code = str(ai_output.get("verification_code") or "").strip()
     ai_link = str(ai_output.get("verification_link") or "").strip()
@@ -1060,22 +1096,10 @@ def enhance_verification_with_ai_fallback(
         updated = True
 
     if not updated:
-        return result
+        return _apply_output_policy(result)
 
     result["ai_schema_version"] = VERIFICATION_AI_SCHEMA_VERSION
     result["ai_reason"] = ai_reason
     result["ai_used"] = True
 
-    parts = []
-    if result.get("verification_code"):
-        parts.append(str(result.get("verification_code")))
-    if result.get("verification_link"):
-        parts.append(str(result.get("verification_link")))
-    result["formatted"] = " ".join(parts) if parts else None
-    result["confidence"] = (
-        "high"
-        if result.get("code_confidence") == "high"
-        or result.get("link_confidence") == "high"
-        else "low"
-    )
-    return result
+    return _apply_output_policy(result)
