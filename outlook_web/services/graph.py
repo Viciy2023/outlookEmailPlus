@@ -21,7 +21,9 @@ def build_proxies(proxy_url: str) -> Optional[Dict[str, str]]:
     return {"http": proxy_url, "https": proxy_url}
 
 
-def get_access_token_graph_result(client_id: str, refresh_token: str, proxy_url: str = None) -> Dict[str, Any]:
+def get_access_token_graph_result(
+    client_id: str, refresh_token: str, proxy_url: str = None
+) -> Dict[str, Any]:
     """获取 Graph API access_token（包含错误详情）"""
     try:
         proxies = build_proxies(proxy_url)
@@ -70,6 +72,7 @@ def get_access_token_graph_result(client_id: str, refresh_token: str, proxy_url:
             "success": True,
             "access_token": access_token,
             "refresh_token": new_refresh_token,
+            "scope": payload.get("scope", ""),
         }
     except Exception as exc:
         return {
@@ -84,7 +87,14 @@ def get_access_token_graph_result(client_id: str, refresh_token: str, proxy_url:
         }
 
 
-def get_access_token_graph(client_id: str, refresh_token: str, proxy_url: str = None) -> Optional[str]:
+def has_mail_read_permission(scope: Any) -> bool:
+    scope_str = str(scope or "")
+    return "Mail.Read" in scope_str or "Mail.ReadWrite" in scope_str
+
+
+def get_access_token_graph(
+    client_id: str, refresh_token: str, proxy_url: str = None
+) -> Optional[str]:
     """获取 Graph API access_token"""
     result = get_access_token_graph_result(client_id, refresh_token, proxy_url)
     if result.get("success"):
@@ -106,6 +116,20 @@ def get_emails_graph(
         return {"success": False, "error": token_result.get("error")}
 
     access_token = token_result.get("access_token")
+    scope = token_result.get("scope", "")
+    if not has_mail_read_permission(scope):
+        return {
+            "success": False,
+            "auth_expired": True,
+            "no_mail_permission": True,
+            "error": build_error_payload(
+                "NO_MAIL_PERMISSION",
+                "此账号未授予邮件读取权限 (scope 中不含 Mail.Read)",
+                "PermissionError",
+                403,
+                f"scope={scope}",
+            ),
+        }
 
     try:
         folder_map = {
@@ -129,7 +153,9 @@ def get_emails_graph(
         }
 
         proxies = build_proxies(proxy_url)
-        res = requests.get(url, headers=headers, params=params, timeout=30, proxies=proxies)
+        res = requests.get(
+            url, headers=headers, params=params, timeout=30, proxies=proxies
+        )
 
         if res.status_code != 200:
             details = get_response_details(res)
@@ -185,7 +211,9 @@ def get_email_detail_graph(
         }
 
         proxies = build_proxies(proxy_url)
-        res = requests.get(url, headers=headers, params=params, timeout=30, proxies=proxies)
+        res = requests.get(
+            url, headers=headers, params=params, timeout=30, proxies=proxies
+        )
 
         if res.status_code != 200:
             return None
@@ -224,9 +252,13 @@ def get_email_raw_graph(
         return None
 
 
-def test_refresh_token(client_id: str, refresh_token: str, proxy_url: str = None) -> tuple[bool, str | None]:
+def test_refresh_token(
+    client_id: str, refresh_token: str, proxy_url: str = None
+) -> tuple[bool, str | None]:
     """测试 refresh token 是否有效，返回 (是否成功, 错误信息)"""
-    ok, err, _new_refresh_token = test_refresh_token_with_rotation(client_id, refresh_token, proxy_url)
+    ok, err, _new_refresh_token = test_refresh_token_with_rotation(
+        client_id, refresh_token, proxy_url
+    )
     return ok, err
 
 
@@ -311,7 +343,9 @@ def delete_emails_graph(
 
         batch_requests = []
         for idx, msg_id in enumerate(batch):
-            batch_requests.append({"id": str(idx), "method": "DELETE", "url": f"/me/messages/{msg_id}"})
+            batch_requests.append(
+                {"id": str(idx), "method": "DELETE", "url": f"/me/messages/{msg_id}"}
+            )
 
         try:
             proxies = build_proxies(proxy_url)
@@ -331,7 +365,9 @@ def delete_emails_graph(
                     else:
                         failed_count += 1
                         try:
-                            errors.append(f"Msg ID: {batch[int(res['id'])]}, Status: {res.get('status')}")
+                            errors.append(
+                                f"Msg ID: {batch[int(res['id'])]}, Status: {res.get('status')}"
+                            )
                         except Exception:
                             errors.append(f"Status: {res.get('status')}")
             else:

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import email
+import hashlib
 import imaplib
 import logging
+import threading
+import time
 from email.header import decode_header
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +24,9 @@ TOKEN_URL_IMAP = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 IMAP_SERVER_NEW = "outlook.live.com"
 IMAP_PORT = 993
 
+_token_cache: Dict[str, tuple] = {}
+_token_cache_lock = threading.Lock()
+
 
 def decode_header_value(header_value: str) -> str:
     """解码邮件头字段"""
@@ -32,7 +38,9 @@ def decode_header_value(header_value: str) -> str:
         for part, charset in decoded_parts:
             if isinstance(part, bytes):
                 try:
-                    decoded_string += part.decode(charset if charset else "utf-8", "replace")
+                    decoded_string += part.decode(
+                        charset if charset else "utf-8", "replace"
+                    )
                 except (LookupError, UnicodeDecodeError):
                     decoded_string += part.decode("utf-8", "replace")
             else:
@@ -58,7 +66,11 @@ def get_email_body(msg) -> str:
                     break
                 except Exception:
                     continue
-            elif content_type == "text/html" and "attachment" not in content_disposition and not body:
+            elif (
+                content_type == "text/html"
+                and "attachment" not in content_disposition
+                and not body
+            ):
                 try:
                     payload = part.get_payload(decode=True)
                     charset = part.get_content_charset() or "utf-8"
@@ -76,8 +88,31 @@ def get_email_body(msg) -> str:
     return body
 
 
+def _make_cache_key(client_id: str, refresh_token: str) -> str:
+    rt_hash = hashlib.sha256(refresh_token.encode("utf-8")).hexdigest()[:16]
+    return f"{client_id}:{rt_hash}"
+
+
+def clear_imap_token_cache(client_id: str = None) -> None:
+    with _token_cache_lock:
+        if client_id is None:
+            _token_cache.clear()
+        else:
+            keys_to_remove = [k for k in _token_cache if k.startswith(f"{client_id}:")]
+            for k in keys_to_remove:
+                del _token_cache[k]
+
+
 def get_access_token_imap_result(client_id: str, refresh_token: str) -> Dict[str, Any]:
     """获取 IMAP access_token（包含错误详情）"""
+    cache_key = _make_cache_key(client_id, refresh_token)
+    with _token_cache_lock:
+        cached = _token_cache.get(cache_key)
+        if cached:
+            access_token, expires_at = cached
+            if time.monotonic() < expires_at:
+                return {"success": True, "access_token": access_token}
+
     try:
         res = requests.post(
             TOKEN_URL_IMAP,
@@ -117,6 +152,11 @@ def get_access_token_imap_result(client_id: str, refresh_token: str) -> Dict[str
                 ),
             }
 
+        expires_in = int(payload.get("expires_in", 3599))
+        ttl = max(0, expires_in - 60)
+        with _token_cache_lock:
+            _token_cache[cache_key] = (access_token, time.monotonic() + ttl)
+
         return {"success": True, "access_token": access_token}
     except Exception as exc:
         return {
@@ -148,7 +188,9 @@ def get_emails_imap(
     top: int = 20,
 ) -> Dict[str, Any]:
     """使用 IMAP 获取邮件列表（支持分页和文件夹选择）- 默认使用新版服务器"""
-    return get_emails_imap_with_server(account, client_id, refresh_token, folder, skip, top, IMAP_SERVER_NEW)
+    return get_emails_imap_with_server(
+        account, client_id, refresh_token, folder, skip, top, IMAP_SERVER_NEW
+    )
 
 
 def get_emails_imap_with_server(
@@ -213,7 +255,9 @@ def get_emails_imap_with_server(
                 if status == "OK" and folder_list:
                     for folder_item in folder_list:
                         if isinstance(folder_item, bytes):
-                            available_folders.append(folder_item.decode("utf-8", errors="ignore"))
+                            available_folders.append(
+                                folder_item.decode("utf-8", errors="ignore")
+                            )
                         else:
                             available_folders.append(str(folder_item))
 
@@ -241,7 +285,13 @@ def get_emails_imap_with_server(
 
         status, messages = connection.search(None, "ALL")
         if status != "OK":
-            _LOGGER.debug("[PERF] imap_search | account=%s | server=%s | folder=%s | status=%s (非OK)", account, server, selected_folder, status)
+            _LOGGER.debug(
+                "[PERF] imap_search | account=%s | server=%s | folder=%s | status=%s (非OK)",
+                account,
+                server,
+                selected_folder,
+                status,
+            )
             return {
                 "success": False,
                 "error": build_error_payload(
@@ -253,7 +303,12 @@ def get_emails_imap_with_server(
                 ),
             }
         if not messages or not messages[0]:
-            _LOGGER.debug("[PERF] imap_search | account=%s | server=%s | folder=%s | total=0 (空信箱)", account, server, selected_folder)
+            _LOGGER.debug(
+                "[PERF] imap_search | account=%s | server=%s | folder=%s | total=0 (空信箱)",
+                account,
+                server,
+                selected_folder,
+            )
             return {"success": True, "emails": []}
 
         message_ids = messages[0].split()
@@ -261,7 +316,17 @@ def get_emails_imap_with_server(
         start_idx = max(0, total - skip - top)
         end_idx = total - skip
 
-        _LOGGER.debug("[PERF] imap_search | account=%s | server=%s | folder=%s | total=%d | skip=%d | top=%d | slice=[%d:%d]", account, server, selected_folder, total, skip, top, start_idx, end_idx)
+        _LOGGER.debug(
+            "[PERF] imap_search | account=%s | server=%s | folder=%s | total=%d | skip=%d | top=%d | slice=[%d:%d]",
+            account,
+            server,
+            selected_folder,
+            total,
+            skip,
+            top,
+            start_idx,
+            end_idx,
+        )
 
         if start_idx >= end_idx:
             return {"success": True, "emails": []}
@@ -279,18 +344,39 @@ def get_emails_imap_with_server(
                     body_preview = get_email_body(msg)
                     emails_data.append(
                         {
-                            "id": (msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id)),
-                            "subject": decode_header_value(msg.get("Subject", "无主题")),
+                            "id": (
+                                msg_id.decode()
+                                if isinstance(msg_id, bytes)
+                                else str(msg_id)
+                            ),
+                            "subject": decode_header_value(
+                                msg.get("Subject", "无主题")
+                            ),
                             "from": decode_header_value(msg.get("From", "未知发件人")),
                             "date": msg.get("Date", "未知时间"),
-                            "body_preview": (body_preview[:200] + "..." if len(body_preview) > 200 else body_preview),
+                            "body_preview": (
+                                body_preview[:200] + "..."
+                                if len(body_preview) > 200
+                                else body_preview
+                            ),
                         }
                     )
             except Exception as fetch_err:
-                _LOGGER.debug("[PERF] imap_fetch | account=%s | msg_id=%s | fetch失败: %s", account, msg_id, fetch_err)
+                _LOGGER.debug(
+                    "[PERF] imap_fetch | account=%s | msg_id=%s | fetch失败: %s",
+                    account,
+                    msg_id,
+                    fetch_err,
+                )
                 continue
 
-        _LOGGER.debug("[PERF] imap_result | account=%s | server=%s | fetched=%d / requested=%d", account, server, len(emails_data), len(paged_ids))
+        _LOGGER.debug(
+            "[PERF] imap_result | account=%s | server=%s | fetched=%d / requested=%d",
+            account,
+            server,
+            len(emails_data),
+            len(paged_ids),
+        )
         return {"success": True, "emails": emails_data}
     except Exception as exc:
         return {
@@ -319,7 +405,9 @@ def get_email_detail_imap(
     folder: str = "inbox",
 ) -> Optional[Dict]:
     """使用 IMAP 获取邮件详情（默认使用新版服务器）。"""
-    return get_email_detail_imap_with_server(account, client_id, refresh_token, message_id, folder, IMAP_SERVER_NEW)
+    return get_email_detail_imap_with_server(
+        account, client_id, refresh_token, message_id, folder, IMAP_SERVER_NEW
+    )
 
 
 def get_email_detail_imap_with_server(
@@ -384,7 +472,11 @@ def get_email_detail_imap_with_server(
 
         raw_text = ""
         try:
-            raw_text = raw_email.decode("utf-8", errors="replace") if isinstance(raw_email, (bytes, bytearray)) else ""
+            raw_text = (
+                raw_email.decode("utf-8", errors="replace")
+                if isinstance(raw_email, (bytes, bytearray))
+                else ""
+            )
         except Exception:
             raw_text = ""
 
