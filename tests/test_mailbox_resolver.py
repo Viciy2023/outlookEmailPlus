@@ -19,7 +19,9 @@ class MailboxResolverTests(unittest.TestCase):
 
             db = get_db()
             db.execute("DELETE FROM accounts WHERE email LIKE '%@resolver.test'")
-            db.execute("DELETE FROM temp_email_messages WHERE email_address LIKE '%@resolver.test'")
+            db.execute(
+                "DELETE FROM temp_email_messages WHERE email_address LIKE '%@resolver.test'"
+            )
             db.execute("DELETE FROM temp_emails WHERE email LIKE '%@resolver.test'")
             db.commit()
 
@@ -52,6 +54,35 @@ class MailboxResolverTests(unittest.TestCase):
         self.assertEqual(mailbox["kind"], "account")
         self.assertEqual(mailbox["email"], "user@resolver.test")
         self.assertEqual(mailbox["read_capability"], "graph")
+
+    def test_resolve_mailbox_supports_plus_alias_lookup(self):
+        with self.app.app_context():
+            from outlook_web.db import get_db
+            from outlook_web.services import mailbox_resolver
+
+            db = get_db()
+            db.execute(
+                """
+                INSERT INTO accounts (email, password, client_id, refresh_token, group_id, status, account_type, provider)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "alias@resolver.test",
+                    "pw",
+                    "cid",
+                    "rt",
+                    1,
+                    "active",
+                    "outlook",
+                    "outlook",
+                ),
+            )
+            db.commit()
+
+            mailbox = mailbox_resolver.resolve_mailbox("alias+signup@resolver.test")
+
+        self.assertEqual(mailbox["kind"], "account")
+        self.assertEqual(mailbox["email"], "alias@resolver.test")
 
     def test_resolve_mailbox_returns_temp_descriptor_for_temp_mailbox(self):
         with self.app.app_context():
