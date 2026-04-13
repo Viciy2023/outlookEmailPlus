@@ -8,6 +8,45 @@
 
 ### 操作记录
 
+#### 29. dev → main 合并 + 全量测试验证
+
+**时间**：2026-04-13
+
+**本次操作**：
+
+1. dev 分支推送到远程
+   - `git push origin dev` → `f4c16e9..7e93193`（8 commits）
+   - 清理 dev 工作区临时诊断脚本（`_check_india*.py`、`_check_pwd.py` 等）
+
+2. dev 合并到 main（仅本地，未推送远程）
+   - 合并提交：`396e52d Merge branch 'dev' into main`
+   - 解决 7 个冲突文件：
+     - `outlook_web/__init__.py`：版本号 → `1.15.0`
+     - `outlook_web/services/graph.py`：保留 `build_token_url()` + dev 格式化签名
+     - `tests/test_version_update.py`：版本引用全部 → `1.15.0`
+     - `CHANGELOG.md`、`README.md`、`README.en.md`、`WORKSPACE.md`：取 dev 版本
+
+3. main 分支全量测试
+   - `python -m pytest tests/ -q` → **1109 passed, 9 skipped** ✅
+   - `python -m pytest tests/test_version_update.py -v` → 51 passed ✅
+   - `python -m pytest tests/test_oauth_tool.py -v` → 71 passed ✅
+
+4. 印度邮箱问题最终调查结论
+   - 扫描所有数据库文件（12 个 `.db`），**无任何 `@outlook.in` 账户**
+   - 主部署 DB 包含：`outlook.com`(20)、`qq.com`(1)、`gmail.com`(1)、`163.com`(1)、`126.com`(1)
+   - 之前的 `ACCOUNT_CREDENTIAL_DECRYPT_FAILED` 确认是 **环境变量配错**（SECRET_KEY 不匹配），非区域问题
+   - Git 历史中无 "India" / "outlook.in" 相关提交
+
+**分支状态**：
+- `main`：领先 origin/main 3 commits（未推送）
+- `dev`：已推送到 origin ✅
+- `Buggithubissue`：领先 origin 1 commit
+
+**本地服务**：
+- dev 工作区 PID 46336，`http://127.0.0.1:5000/login` HTTP 200
+
+---
+
 #### 28. OAuth Token 工具 UI 简化 + 获取授权链接 + i18n 翻译
 
 **时间**：2026-04-13
@@ -43,7 +82,7 @@
 
 **测试结果**：
 - `python -m pytest tests/test_oauth_tool.py -v` → 71 passed
-- `python -m pytest tests/ -q` → 1001 passed, 10 skipped, 2 warnings
+- `python -m pytest tests/ -q` → 1109 passed, 9 skipped
 
 **本地服务**：
 - PID 11436，`http://127.0.0.1:5000/login` HTTP 200
