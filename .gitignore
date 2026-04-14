@@ -98,3 +98,6 @@ start_temp.bat
 .aider*
 
 cookies.txt
+huggingface/env.example
+huggingface/构建日志.MD
+huggingface/运行日志.MD

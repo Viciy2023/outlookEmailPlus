@@ -1,0 +1,58 @@
+name: Sync Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync-hf-space:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sync-hf-space-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve Hugging Face repo id
+        id: resolve-hf-repo
+        shell: bash
+        env:
+          HF_SPACE_REPO_ID: ${{ vars.HF_SPACE_REPO_ID }}
+          HF_BUCKET: ${{ secrets.HF_BUCKET }}
+        run: |
+          repo_id="${HF_SPACE_REPO_ID}"
+
+          if [ -z "$repo_id" ] && [ -n "$HF_BUCKET" ]; then
+            owner="${HF_BUCKET%%/*}"
+            bucket_name="${HF_BUCKET#*/}"
+
+            if [ -n "$owner" ] && [ -n "$bucket_name" ] && [ "$owner" != "$bucket_name" ]; then
+              repo_id="${owner}/${bucket_name%-storage}"
+            fi
+          fi
+
+          if [ -z "$repo_id" ]; then
+            echo "HF repo id is empty. Set GitHub variable HF_SPACE_REPO_ID or secret HF_BUCKET." >&2
+            exit 1
+          fi
+
+          echo "repo_id=$repo_id" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Space payload
+        run: |
+          rm -rf hf-space
+          mkdir -p hf-space
+          cp huggingface/Dockerfile hf-space/Dockerfile
+          cp huggingface/README.md hf-space/README.md
+
+      - name: Sync to Hugging Face Space
+        uses: huggingface/hub-sync@v0.1.0
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: ${{ steps.resolve-hf-repo.outputs.repo_id }}
+          hf_token: ${{ secrets.HF_TOKEN }}
+          repo_type: space
+          space_sdk: docker
+          subdirectory: hf-space
