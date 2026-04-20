@@ -1,21 +1,6 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-    branches:
-      - main
-      - master
-      - dev          # dev 分支自动构建 :dev 标签
-    paths:
-      - '**.py'
-      - 'pyproject.toml'
-      - 'requirements.txt'
-      - 'Dockerfile'
-      - 'templates/**'
-      - 'static/**'
-      - '.github/workflows/docker-build-push.yml'
   workflow_dispatch:
 
 env:
